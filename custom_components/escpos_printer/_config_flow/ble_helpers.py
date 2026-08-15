@@ -174,13 +174,12 @@ async def _can_connect_ble(
     table cannot silently move the print target — and so the diagnostics
     download records what was actually negotiated.
 
-    The probe **writes**, it does not merely connect. Some printers (MTP-II
-    and relatives) accept the connection and resolve their characteristic
-    normally, then reject the first actual write with ATT 0x08 because the
-    link isn't bonded. A connect-only probe reports those as healthy and the
-    user discovers the truth on their first print. ``ESC @`` (initialise) is
-    the harmless payload for this: it resets printer state and emits no
-    paper.
+    The probe **writes**, it does not merely connect. Some printers accept
+    the connection and resolve their characteristic normally, then reject the
+    first actual write with ATT 0x08 because the link isn't bonded. A
+    connect-only probe reports those as healthy and the user discovers the
+    truth on their first print. ``ESC @`` (initialise) is the harmless
+    payload for this: it resets printer state and emits no paper.
     """
     connection = None
     try:

@@ -294,10 +294,12 @@ async def async_connect_ble(
     Routes through HA's bluetooth integration, so an ESPHome proxy is used
     transparently when it has the better path to the printer.
 
-    ``pair`` bonds the link after connecting. Some printers (MTP-II among
-    them) reject writes on an unbonded link with ATT 0x08, which surfaces as
+    ``pair`` bonds the link after connecting. Some printers reject writes on
+    an unbonded link with ATT 0x08, which surfaces as
     :class:`BleAuthorizationError` on the first print rather than at connect
     time — the peripheral accepts the connection and only refuses the data.
+    Beware that a marginal radio link can also produce ATT 0x08 spuriously;
+    confirm signal strength before concluding a printer needs bonding.
 
     Raises :class:`BluetoothUnavailableError` when the bluetooth integration
     isn't set up, :class:`BleNotFoundError` when no connectable scanner can

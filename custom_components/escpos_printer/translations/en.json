@@ -53,7 +53,7 @@
             "data_description": {
               "ble_write_uuid": "Leave blank to auto-detect. Set this only if your printer accepts a connection but nothing prints — the diagnostics download lists every characteristic the device exposes. Accepts the full 128-bit form or 16-bit shorthand such as ff02.",
               "ble_with_response": "Acknowledged writes are slower but let the printer apply backpressure, which prevents dropped bytes in large images. Auto uses acknowledged writes whenever the characteristic supports them.",
-              "ble_pair": "Bond with the printer when connecting. Required by printers that accept the connection but reject the actual print data with an authorization error (MTP-II and relatives do this). Leave off unless setup or printing fails that way."
+              "ble_pair": "Bond with the printer when connecting. Required by printers that accept the connection but reject the actual print data with an authorization error. Check the signal-strength sensor first — a weak link causes the same error. Leave off unless you have ruled that out."
             }
           }
         }

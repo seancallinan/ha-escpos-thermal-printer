@@ -107,7 +107,13 @@ characteristic. The integration auto-detects one, preferring these known convent
 
 If none match, it falls back to the first writable characteristic it finds.
 
-**If your printer connects but nothing prints**, auto-detection may have picked a vendor control
+**If your printer connects but nothing prints, check `feed` first.** Portable BLE printers have
+no auto-cutter, and several services default to `feed: 0`. With no feed the paper never advances
+past the print head, so output stays inside the mechanism and successive lines overprint each
+other — no error, no paper. Pass `feed: 2` or higher. This is by far the most common cause of a
+"successful" print with nothing to show for it.
+
+If feed isn't it, auto-detection may have picked a vendor control
 characteristic instead of the data channel. Download the diagnostics for the entry
 (**⋮ → Download diagnostics** on the device page) and look under `runtime.diagnostics.ble.gatt_layout`
 — it lists every characteristic the device exposes, which are writable, and which are recognised.
@@ -126,8 +132,12 @@ If the failure message mentions *authorization* rather than nothing happening, y
 **Settings → ... → Configure → reconfigure the entry → Pair with printer**, default off.
 
 Some printers accept the BLE connection and resolve their characteristic normally, then reject
-the actual print data with `Insufficient authorization (8)` because the link isn't bonded. The
-MTP-II family does this. If setup or printing fails that way, turn this on.
+the actual print data with `Insufficient authorization (8)` because the link isn't bonded. If
+setup or printing fails that way, turn this on.
+
+> **Check signal strength before enabling this.** A marginal link produces the same
+> authorization error spuriously — a printer at −95 dBm can report ATT 0x08 on a connection
+> that is really just falling apart. Confirm a solid link first, then decide.
 
 It's off by default because bonding consumes one of the ESP32's small number of stored bond
 slots and shouldn't happen unasked. Setup writes a harmless `ESC @` (printer reset, no paper)

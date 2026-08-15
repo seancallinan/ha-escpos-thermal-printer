@@ -134,7 +134,7 @@ Vendor ID isn't in the known list. Use **Browse all USB devices** or **Manual en
 | `ble_not_found` | Printer out of range of every connectable scanner, or not advertising | Power it on; move a proxy closer. Many portable models advertise only for a few minutes after power-on |
 | `ble_connect_failed` | Already connected to a phone, at range edge, or the proxy is out of connection slots | Disconnect the other client; lower **BLE idle disconnect**; add a second proxy |
 | `ble_no_write_char` | Device exposes nothing writable — probably not an ESC/POS printer | If you're sure it is, set the write characteristic UUID manually |
-| `ble_needs_pairing` | Printer accepted the connection but refused the data with ATT 0x08 (insufficient authorization) — its write characteristic requires a bonded link | Enable **Pair with printer** in the entry's reconfigure form. Common on MTP-II and relatives |
+| `ble_needs_pairing` | Printer accepted the connection but refused the data with ATT 0x08 (insufficient authorization) — its write characteristic requires a bonded link | Check signal strength first: a weak link produces this spuriously. If the signal is good, enable **Pair with printer** in the entry's reconfigure form |
 | `cannot_connect_ble` | Catchall | Check HA debug logs |
 | `invalid_ble_address` | Address format invalid | Use `AA:BB:CC:DD:EE:FF` |
 | `invalid_ble_uuid` | Characteristic UUID malformed | Use the 128-bit form or 16-bit shorthand (`ff02`) |
@@ -190,6 +190,25 @@ The printer accepted the connection and the characteristic resolved fine — it 
 Bonding over an ESPHome proxy is the least reliable part of the BLE path (the proxy carries the
 exchange and stores the bond on the ESP32, which has few bond slots). If it still fails, the
 printer likely needs a host Bluetooth adapter, or Bluetooth Classic if it is dual-mode.
+
+### Print succeeds, no error, but no paper comes out
+
+**Check `feed` before anything else.** Printers without an auto-cutter — which is most portable
+BLE and Bluetooth Classic models — only advance paper when you ask them to, and `print_text`,
+`print_text_utf8`, `print_qr` and `print_barcode` all default to `feed: 0`. The result is that
+everything prints inside the mechanism, on top of itself, and nothing emerges. There is no error
+because the bytes were delivered successfully.
+
+Pass `feed: 2` or higher:
+
+```yaml
+action: escpos_printer.print_text
+data:
+  text: Hello
+  feed: 3
+```
+
+Printers with a cutter don't show this, because the cut advances the paper for you.
 
 ### BLE printer connects but nothing prints
 

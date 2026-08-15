@@ -24,8 +24,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 - BLE entries gained a **Pair with printer** option. Some printers accept the
   connection and resolve their write characteristic normally, then reject the
   actual print data with ATT 0x08 (insufficient authorization) because the link
-  isn't bonded — the MTP-II family does this. Off by default, since bonding
-  consumes one of an ESP32 proxy's few bond slots.
+  isn't bonded. Off by default, since bonding consumes one of an ESP32
+  proxy's few bond slots, and because an authorization error over a weak link
+  can be a symptom of the link rather than a real bonding requirement —
+  check signal strength before enabling this.
 - The BLE setup probe now **writes** (a harmless `ESC @` reset) instead of only
   connecting, so a printer that needs bonding is caught during setup rather than
   on the user's first print.
