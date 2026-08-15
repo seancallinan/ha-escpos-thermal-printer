@@ -130,6 +130,7 @@ Vendor ID isn't in the known list. Use **Browse all USB devices** or **Manual en
 | Error key | Likely cause | Action |
 |-----------|--------------|--------|
 | `ble_no_bluetooth` | HA's Bluetooth integration isn't set up | Add a Bluetooth adapter, or an ESPHome proxy with `active: true` |
+| `ble_no_scanners` | No adapter or proxy is currently online, so nothing can reach any BLE device | Check your Bluetooth proxies are powered on and reachable. Look for `aioesphomeapi ... Can't connect` in the log |
 | `ble_not_found` | Printer out of range of every connectable scanner, or not advertising | Power it on; move a proxy closer. Many portable models advertise only for a few minutes after power-on |
 | `ble_connect_failed` | Already connected to a phone, at range edge, or the proxy is out of connection slots | Disconnect the other client; lower **BLE idle disconnect**; add a second proxy |
 | `ble_no_write_char` | Device exposes nothing writable — probably not an ESC/POS printer | If you're sure it is, set the write characteristic UUID manually |
@@ -162,6 +163,24 @@ just drops bytes. In order of effectiveness:
 1. Raise **BLE write delay (ms)** (default 20) in the options flow.
 2. Set **Write acknowledgement** to *Always acknowledged*.
 3. Select the **BLE-safe** reliability profile (small image slices, long per-slice wait).
+
+### All BLE operations fail at once
+
+If every BLE action started failing together, check the proxies before the printer. In the HA
+log, look for:
+
+```text
+[aioesphomeapi.reconnect_logic] Can't connect to ESPHome API for <proxy> @ <ip>: [Errno 113]
+```
+
+`Errno 113` is `EHOSTUNREACH` — Home Assistant has no network route to the proxy. If several
+ESPHome devices report it at the same timestamp, it's a host/network problem, not Bluetooth:
+check the HA host's networking (especially container networking and VLAN routing), then the
+proxies themselves.
+
+Home Assistant caches discovered BLE devices for a while, so a printer can still *appear*
+configured and reachable for a period after its only proxy has gone offline. The integration
+reports this as `ble_no_scanners` once it notices the scanner pool is empty.
 
 ### BLE print fails with "Insufficient authorization (8)"
 

@@ -191,6 +191,11 @@ used by Classic entries doesn't apply to proxied devices.
   the proxy is out of free connection slots.
 - **`ble_needs_pairing`** — the printer accepted the connection but refused the data with an
   authorization error. Enable [Pair with printer](#pairing-bonding).
+- **`ble_no_scanners`** — no adapter or proxy is online at all, so nothing can reach any BLE
+  device. This is an infrastructure problem, not a printer one: check that your proxies are
+  powered on and reachable, and look for `aioesphomeapi ... Can't connect` in the HA log. Home
+  Assistant caches discovered devices, so a printer can keep *looking* configured for a while
+  after its only proxy drops off.
 - **Printer missing from the picker** — choose **Show all discovered BLE devices...**. If it's
   still absent, the only scanner that can see it is passive; check `active: true` on your
   ESPHome proxy.

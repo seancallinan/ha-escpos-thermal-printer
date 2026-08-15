@@ -190,6 +190,22 @@ def async_discovered_devices(hass: HomeAssistant) -> list[Any]:
     return list(bluetooth.async_discovered_service_info(hass, connectable=True))
 
 
+def connectable_scanner_count(hass: HomeAssistant) -> int:
+    """Return how many connectable scanners (adapters + proxies) are live.
+
+    Zero means there is no route to *any* BLE device, which is a very
+    different problem from a specific printer being out of range — and one
+    the user fixes somewhere else entirely (a proxy is offline, or the
+    bluetooth integration lost its adapter). Callers use this to avoid
+    blaming the printer for an empty scanner pool.
+    """
+    if not bluetooth_ready(hass):
+        return 0
+    from homeassistant.components import bluetooth  # noqa: PLC0415
+
+    return int(bluetooth.async_scanner_count(hass, connectable=True))
+
+
 class BleConnection:
     """A live BLE GATT link to a printer, owned by the event loop.
 

@@ -34,6 +34,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
   diagnostics download never has to wake the printer to produce it. This is what
   `docs/ble.md` tells users to consult when auto-detection picks the wrong
   characteristic.
+- BLE failures now distinguish "no adapter or proxy is online" (`ble_no_scanners`)
+  from "this printer is unreachable". Home Assistant caches discovered devices,
+  so after every Bluetooth proxy goes offline a stale handle still resolves and
+  the failure only surfaces at connect time — where the old message blamed range
+  or proxy connection slots and sent users hunting in the wrong place.
 - New **BLE-safe** reliability profile (64px image slices, 200ms per-slice
   wait) for BLE printers that drop bytes partway through an image, plus
   per-entry **BLE write delay** and **BLE idle disconnect** options.

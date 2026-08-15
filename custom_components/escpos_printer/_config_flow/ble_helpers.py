@@ -87,6 +87,7 @@ _BLE_ERROR_KEY_MAP: dict[str, str] = {
     "connect_failed": "ble_connect_failed",
     "no_bluetooth": "ble_no_bluetooth",
     "needs_pairing": "ble_needs_pairing",
+    "no_scanners": "ble_no_scanners",
 }
 
 
@@ -191,36 +192,43 @@ async def _can_connect_ble(
             pair=pair,
         )
         await connection.async_write(_ESCPOS_INITIALIZE, 0.0)
-    except ble_transport.BluetoothUnavailableError:
-        return False, "no_bluetooth", None
-    except ble_transport.BleNotFoundError:
-        return False, "not_found", None
-    except BleWriteCharacteristicError as exc:
-        _LOGGER.debug(
-            "BLE probe found no write characteristic on %s: %s",
-            sanitize_log_message(address),
-            sanitize_log_message(str(exc)),
-        )
-        return False, "no_write_char", None
-    except ble_transport.BleAuthorizationError as exc:
-        _LOGGER.debug(
-            "BLE probe rejected for authorization on %s: %s",
-            sanitize_log_message(address),
-            sanitize_log_message(str(exc)),
-        )
-        return False, "needs_pairing", None
     except Exception as exc:
+        code = _probe_error_code(hass, exc)
         _LOGGER.debug(
-            "BLE probe failed for %s: %s",
+            "BLE probe failed for %s (%s): %s",
             sanitize_log_message(address),
+            code,
             sanitize_log_message(str(exc)),
         )
-        return False, "connect_failed", None
+        return False, code, None
     else:
         return True, None, connection.characteristic_uuid
     finally:
         if connection is not None:
             await connection.async_disconnect()
+
+
+def _probe_error_code(hass: HomeAssistant, exc: Exception) -> str:
+    """Map a probe failure to a stable error code.
+
+    The scanner-pool check is what keeps an infrastructure outage from
+    being reported as a printer problem: Home Assistant caches discovered
+    devices for a while, so a stale handle still resolves after every proxy
+    has gone offline, and the failure only surfaces at connect time.
+    Blaming range or connection slots there sends the user hunting in
+    entirely the wrong place.
+    """
+    if isinstance(exc, ble_transport.BluetoothUnavailableError):
+        return "no_bluetooth"
+    if isinstance(exc, BleWriteCharacteristicError):
+        return "no_write_char"
+    if isinstance(exc, ble_transport.BleAuthorizationError):
+        return "needs_pairing"
+    if ble_transport.connectable_scanner_count(hass) == 0:
+        return "no_scanners"
+    if isinstance(exc, ble_transport.BleNotFoundError):
+        return "not_found"
+    return "connect_failed"
 
 
 def _known_uuid_choices() -> dict[str, str]:

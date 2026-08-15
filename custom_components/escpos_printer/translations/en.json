@@ -361,6 +361,7 @@
       "ble_connect_failed": "Could not open a Bluetooth LE connection to the printer. It may be out of range, already connected to another device, or out of free connection slots on the proxy.",
       "ble_needs_pairing": "The printer accepted the connection but refused the print data because the link is not bonded (insufficient authorization). Enable 'Pair with printer' and try again.",
       "ble_no_bluetooth": "Home Assistant's Bluetooth integration is not set up. Add a Bluetooth adapter, or an ESPHome Bluetooth proxy with 'active: true', then try again.",
+      "ble_no_scanners": "No Bluetooth adapter or proxy is currently online, so Home Assistant cannot reach any BLE device. Check that your Bluetooth proxies are powered on and reachable on the network, then try again.",
       "ble_no_write_char": "Connected, but the device exposes no writable characteristic — it is probably not a BLE ESC/POS printer. If you know it is, set the write characteristic UUID manually.",
       "ble_not_found": "No Bluetooth adapter or proxy can currently reach that printer. Check that it is powered on and advertising, and that a connectable scanner is in range.",
       "bt_channel_refused": "The printer is reachable but refused the RFCOMM channel. Most ESC/POS printers use channel 1 — try a different channel, or run 'bluetoothctl info [MAC]' on the host to confirm the SerialPort service-record channel.",

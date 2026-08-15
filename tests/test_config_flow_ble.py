@@ -229,7 +229,12 @@ class TestCanConnectBle:
         ],
     )
     async def test_maps_failures_to_stable_codes(self, hass, exc, expected_code):
-        with patch.object(ble_transport, "async_connect_ble", side_effect=exc):
+        # Pin a live scanner: with an empty pool every failure is correctly
+        # reported as no_scanners instead, which the class below covers.
+        with (
+            patch.object(ble_transport, "async_connect_ble", side_effect=exc),
+            patch.object(ble_transport, "connectable_scanner_count", return_value=1),
+        ):
             ok, error, uuid = await _can_connect_ble(hass, "AA:BB:CC:DD:EE:FF", None, None)
         assert ok is False
         assert error == expected_code
@@ -704,3 +709,82 @@ class TestPairingProbe:
                 }
             )
         assert flow._user_data[CONF_BLE_PAIR] is False
+
+
+class TestEmptyScannerPool:
+    """An infrastructure outage must not be reported as a printer problem.
+
+    Home Assistant caches discovered devices, so after every Bluetooth proxy
+    goes offline a stale handle still resolves and the failure only appears
+    at connect time. Blaming range or connection slots there sends the user
+    hunting in entirely the wrong place -- which is exactly what happened
+    when all three of a real user's ESPHome proxies dropped off the network.
+    """
+
+    @pytest.mark.parametrize(
+        "exc",
+        [
+            OSError("Could not connect"),
+            ble_transport.BleNotFoundError("out of range"),
+        ],
+    )
+    async def test_no_scanners_beats_printer_specific_codes(self, hass, exc):
+        with (
+            patch.object(ble_transport, "async_connect_ble", side_effect=exc),
+            patch.object(ble_transport, "connectable_scanner_count", return_value=0),
+        ):
+            ok, error, _uuid = await _can_connect_ble(hass, "AA:BB:CC:DD:EE:FF", None, None)
+        assert (ok, error) == (False, "no_scanners")
+
+    async def test_no_scanners_maps_to_its_own_message(self):
+        assert _ble_error_to_key("no_scanners") == "ble_no_scanners"
+
+    @pytest.mark.parametrize(
+        ("exc", "expected"),
+        [
+            (ble_transport.BluetoothUnavailableError("no stack"), "no_bluetooth"),
+            (BleWriteCharacteristicError("nothing writable"), "no_write_char"),
+            (ble_transport.BleAuthorizationError("auth"), "needs_pairing"),
+        ],
+    )
+    async def test_definitive_diagnoses_survive_an_empty_pool(self, hass, exc, expected):
+        """These say something true about the device regardless of scanners.
+
+        We only reached them by talking to the printer, so an empty pool
+        afterwards must not overwrite a diagnosis we actually earned.
+        """
+        with (
+            patch.object(ble_transport, "async_connect_ble", side_effect=exc),
+            patch.object(ble_transport, "connectable_scanner_count", return_value=0),
+        ):
+            ok, error, _uuid = await _can_connect_ble(hass, "AA:BB:CC:DD:EE:FF", None, None)
+        assert (ok, error) == (False, expected)
+
+
+class TestConnectableScannerCount:
+    """The seam that reports how many adapters/proxies are live."""
+
+    def test_zero_when_bluetooth_not_set_up(self, hass):
+        assert ble_transport.connectable_scanner_count(hass) == 0
+
+    def test_reads_the_bluetooth_manager_when_available(self, hass, monkeypatch):
+        import sys
+        import types
+
+        from homeassistant import components
+
+        module = types.ModuleType("homeassistant.components.bluetooth")
+        captured = {}
+
+        def _count(_hass, connectable=False):
+            captured["connectable"] = connectable
+            return 3
+
+        module.async_scanner_count = _count
+        monkeypatch.setitem(sys.modules, "homeassistant.components.bluetooth", module)
+        monkeypatch.setattr(components, "bluetooth", module, raising=False)
+        hass.config.components.add("bluetooth")
+
+        assert ble_transport.connectable_scanner_count(hass) == 3
+        # Passive-only scanners can't print, so they must not count.
+        assert captured["connectable"] is True
