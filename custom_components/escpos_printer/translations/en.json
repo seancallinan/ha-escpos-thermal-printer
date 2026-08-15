@@ -11,14 +11,16 @@
           "ble_write_uuid": "Write characteristic UUID",
           "ble_with_response": "Write acknowledgement",
           "timeout": "Timeout (seconds)",
-          "profile": "Printer profile"
+          "profile": "Printer profile",
+          "ble_pair": "Pair with printer"
         },
         "data_description": {
           "ble_address": "Bluetooth LE address in AA:BB:CC:DD:EE:FF format.",
           "ble_write_uuid": "Leave on Auto-detect unless you know your printer's data characteristic. The listed presets cover the common vendor conventions.",
           "ble_with_response": "Acknowledged writes are slower but prevent dropped bytes on large images. Auto uses them whenever the characteristic supports them.",
           "timeout": "Connection timeout in seconds.",
-          "profile": "Select your printer model — or Generic (no profile) if it isn't listed; rebadged models appear as \"(compatible)\" entries."
+          "profile": "Select your printer model — or Generic (no profile) if it isn't listed; rebadged models appear as \"(compatible)\" entries.",
+          "ble_pair": "Bond with the printer when connecting. Turn this on if the printer connects but refuses to print with an authorization error."
         }
       },
       "ble_no_devices": {
@@ -45,11 +47,13 @@
             "name": "Advanced options",
             "data": {
               "ble_write_uuid": "Write characteristic UUID",
-              "ble_with_response": "Write acknowledgement"
+              "ble_with_response": "Write acknowledgement",
+              "ble_pair": "Pair with printer"
             },
             "data_description": {
               "ble_write_uuid": "Leave blank to auto-detect. Set this only if your printer accepts a connection but nothing prints — the diagnostics download lists every characteristic the device exposes. Accepts the full 128-bit form or 16-bit shorthand such as ff02.",
-              "ble_with_response": "Acknowledged writes are slower but let the printer apply backpressure, which prevents dropped bytes in large images. Auto uses acknowledged writes whenever the characteristic supports them."
+              "ble_with_response": "Acknowledged writes are slower but let the printer apply backpressure, which prevents dropped bytes in large images. Auto uses acknowledged writes whenever the characteristic supports them.",
+              "ble_pair": "Bond with the printer when connecting. Required by printers that accept the connection but reject the actual print data with an authorization error (MTP-II and relatives do this). Leave off unless setup or printing fails that way."
             }
           }
         }
@@ -184,13 +188,15 @@
           "ble_address": "BLE address",
           "ble_write_uuid": "Write characteristic UUID",
           "ble_with_response": "Write acknowledgement",
-          "timeout": "Timeout (seconds)"
+          "timeout": "Timeout (seconds)",
+          "ble_pair": "Pair with printer"
         },
         "data_description": {
           "ble_address": "Bluetooth LE address in AA:BB:CC:DD:EE:FF format. Pointing this entry at a different address is not allowed — add a second printer instead.",
           "ble_write_uuid": "Leave blank to auto-detect the printer's data characteristic.",
           "ble_with_response": "Acknowledged writes are slower but prevent dropped bytes on large images.",
-          "timeout": "Connection timeout in seconds."
+          "timeout": "Connection timeout in seconds.",
+          "ble_pair": "Bond with the printer when connecting. Turn this on if the printer connects but refuses to print with an authorization error."
         }
       },
       "reconfigure_bluetooth": {
@@ -353,6 +359,7 @@
     "error": {
       "already_configured": "This printer is already configured.",
       "ble_connect_failed": "Could not open a Bluetooth LE connection to the printer. It may be out of range, already connected to another device, or out of free connection slots on the proxy.",
+      "ble_needs_pairing": "The printer accepted the connection but refused the print data because the link is not bonded (insufficient authorization). Enable 'Pair with printer' and try again.",
       "ble_no_bluetooth": "Home Assistant's Bluetooth integration is not set up. Add a Bluetooth adapter, or an ESPHome Bluetooth proxy with 'active: true', then try again.",
       "ble_no_write_char": "Connected, but the device exposes no writable characteristic — it is probably not a BLE ESC/POS printer. If you know it is, set the write characteristic UUID manually.",
       "ble_not_found": "No Bluetooth adapter or proxy can currently reach that printer. Check that it is powered on and advertising, and that a connectable scanner is in range.",

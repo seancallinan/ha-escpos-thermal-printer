@@ -24,6 +24,7 @@ from .const import (
     CONF_BAUDRATE,
     CONF_BLE_ADDRESS,
     CONF_BLE_IDLE_DISCONNECT,
+    CONF_BLE_PAIR,
     CONF_BLE_WITH_RESPONSE,
     CONF_BLE_WRITE_CHUNK_DELAY_MS,
     CONF_BLE_WRITE_UUID,
@@ -289,6 +290,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: EscposConfigEntry) -> bo
             address=str(entry.data.get(CONF_BLE_ADDRESS, "")),
             write_uuid=raw_write_uuid or None,
             with_response=(None if raw_with_response is None else bool(raw_with_response)),
+            pair=bool(entry.data.get(CONF_BLE_PAIR, False)),
             **shared,
             write_chunk_delay_ms=int(
                 entry.options.get(CONF_BLE_WRITE_CHUNK_DELAY_MS, DEFAULT_CHUNK_DELAY_MS_BLE)

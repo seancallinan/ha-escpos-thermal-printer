@@ -67,6 +67,10 @@ CONF_BLE_WRITE_UUID = "ble_write_uuid"
 # Optional override for acknowledged vs unacknowledged GATT writes. Unset
 # means "use write-with-response when the characteristic offers it".
 CONF_BLE_WITH_RESPONSE = "ble_with_response"
+# Bond the link on connect. Some printers (MTP-II and relatives) accept the
+# connection but reject writes on an unbonded link with ATT 0x08
+# (Insufficient Authorization), which only shows up on the first print.
+CONF_BLE_PAIR = "ble_pair"
 # Seconds an idle GATT link is held open before being released. BLE connects
 # cost seconds and consume a scarce proxy connection slot, so the link
 # outlives a single print. 0 disables caching (reconnect per print).

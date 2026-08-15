@@ -107,12 +107,37 @@ characteristic. The integration auto-detects one, preferring these known convent
 
 If none match, it falls back to the first writable characteristic it finds.
 
-**If your printer connects but nothing prints**, auto-detection probably picked a vendor control
+**If your printer connects but nothing prints**, auto-detection may have picked a vendor control
 characteristic instead of the data channel. Download the diagnostics for the entry
-(**⋮ → Download diagnostics** on the device page) — it lists every characteristic the device
-exposes, which are writable, and which are recognised. Then set **Write characteristic UUID** in
-the entry's reconfigure form. Both the full 128-bit form and 16-bit shorthand (`ff02`) are
-accepted.
+(**⋮ → Download diagnostics** on the device page) and look under `runtime.diagnostics.ble.gatt_layout`
+— it lists every characteristic the device exposes, which are writable, and which are recognised.
+Then set **Write characteristic UUID** in the entry's reconfigure form. Both the full 128-bit form
+and 16-bit shorthand (`ff02`) are accepted.
+
+The layout is captured on each successful connect and survives the idle disconnect, so the
+download never has to wake the printer to produce it. It stays empty until the first successful
+connection.
+
+If the failure message mentions *authorization* rather than nothing happening, you need
+[pairing](#pairing-bonding), not a different UUID.
+
+### Pairing (bonding)
+
+**Settings → ... → Configure → reconfigure the entry → Pair with printer**, default off.
+
+Some printers accept the BLE connection and resolve their characteristic normally, then reject
+the actual print data with `Insufficient authorization (8)` because the link isn't bonded. The
+MTP-II family does this. If setup or printing fails that way, turn this on.
+
+It's off by default because bonding consumes one of the ESP32's small number of stored bond
+slots and shouldn't happen unasked. Setup writes a harmless `ESC @` (printer reset, no paper)
+to prove the write path works, so a printer that needs bonding is caught during setup rather
+than on your first print.
+
+> **Pairing over an ESPHome proxy is the least reliable part of this path.** The proxy has to
+> carry the bonding exchange and store the bond on the ESP32. If enabling this doesn't work,
+> the printer is likely only usable over a host Bluetooth adapter — or, if it's dual-mode, over
+> [Bluetooth Classic](bluetooth.md).
 
 ### Write acknowledgement
 
@@ -164,11 +189,16 @@ used by Classic entries doesn't apply to proxied devices.
 - **`ble_connect_failed`** — the connection attempt failed. Common causes: the printer is
   already connected to a phone (BLE printers accept one client), it's at the edge of range, or
   the proxy is out of free connection slots.
+- **`ble_needs_pairing`** — the printer accepted the connection but refused the data with an
+  authorization error. Enable [Pair with printer](#pairing-bonding).
 - **Printer missing from the picker** — choose **Show all discovered BLE devices...**. If it's
   still absent, the only scanner that can see it is passive; check `active: true` on your
   ESPHome proxy.
 - **Prints start fine then turn to garbage** — raise the BLE write delay, switch write
   acknowledgement to **Always acknowledged**, or select the **BLE-safe** reliability profile.
+- **Everything is intermittent** — check the **Signal strength** sensor. Below about −85 dBm a
+  BLE link drops connections mid-write regardless of tuning; move a Bluetooth proxy closer to
+  the printer. That single change fixes more BLE problems than every option on this page.
 
 ## Security
 

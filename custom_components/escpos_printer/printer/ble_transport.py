@@ -45,6 +45,7 @@ from homeassistant.core import HomeAssistant
 from ..security import sanitize_log_message
 from .ble_gatt import (
     BleWriteCharacteristicError,
+    describe_services,
     max_write_size,
     prefers_response,
     select_write_characteristic,
@@ -88,6 +89,39 @@ class BleNotFoundError(Exception):
     only scanners that can see it are non-connectable (a passive-only proxy,
     or ESPHome without ``active: true``).
     """
+
+
+class BleAuthorizationError(Exception):
+    """Raised when the printer rejects writes because the link isn't bonded.
+
+    ATT error 0x08 (Insufficient Authorization) / 0x05 (Insufficient
+    Authentication) mean the connection succeeded and the characteristic
+    resolved, but the peripheral will not accept data over an unbonded
+    link. The fix is the ``pair`` option, not a different characteristic —
+    so this is surfaced distinctly rather than folded into a generic
+    "connect failed".
+    """
+
+
+# Substrings that identify an ATT authorization/authentication rejection.
+# The bleak backends and the ESPHome proxy each phrase it differently and
+# none expose a stable error code through the exception type, so string
+# matching is the only portable signal available.
+_AUTH_ERROR_MARKERS = (
+    "insufficient authorization",
+    "insufficient authentication",
+    "insufficient encryption",
+    "not paired",
+    "att error: 0x05",
+    "att error: 0x08",
+    "att error: 0x0f",
+)
+
+
+def is_authorization_error(exc: BaseException) -> bool:
+    """Return True if ``exc`` looks like an ATT authorization rejection."""
+    text = str(exc).lower()
+    return any(marker in text for marker in _AUTH_ERROR_MARKERS)
 
 
 class BluetoothUnavailableError(Exception):
@@ -172,12 +206,18 @@ class BleConnection:
         address: str,
         with_response: bool,
         max_chunk: int,
+        gatt_layout: list[dict[str, Any]] | None = None,
     ) -> None:
         self._client = client
         self._characteristic = characteristic
         self.address = address
         self.with_response = with_response
         self.max_chunk = max_chunk
+        # Captured at connect time so diagnostics can show the device's GATT
+        # layout without opening a link (the adapter drops the connection
+        # after each idle period, and a diagnostics download must never wake
+        # the printer).
+        self.gatt_layout = gatt_layout or []
 
     @property
     def client(self) -> Any:
@@ -195,11 +235,26 @@ class BleConnection:
         return bool(getattr(self._client, "is_connected", False))
 
     async def async_write(self, data: bytes, chunk_delay_s: float) -> None:
-        """Write ``data`` to the printer in MTU-sized chunks."""
+        """Write ``data`` to the printer in MTU-sized chunks.
+
+        A write rejected for authorization is re-raised as
+        :class:`BleAuthorizationError` so the adapter can tell the user to
+        enable pairing instead of reporting an opaque GATT failure.
+
+        Deliberately no retry: a receipt is not idempotent, and a write that
+        failed partway through has already put ink on paper. Retrying risks a
+        double print, which the project treats as worse than a failed one
+        (see ROADMAP: "Retry only on positive evidence the job did not go").
+        """
         for chunk, is_last in iter_chunks(data, self.max_chunk):
-            await self._client.write_gatt_char(
-                self._characteristic, chunk, response=self.with_response
-            )
+            try:
+                await self._client.write_gatt_char(
+                    self._characteristic, chunk, response=self.with_response
+                )
+            except Exception as exc:
+                if is_authorization_error(exc):
+                    raise BleAuthorizationError(str(exc)) from exc
+                raise
             if chunk_delay_s > 0 and not is_last:
                 await asyncio.sleep(chunk_delay_s)
 
@@ -215,12 +270,18 @@ async def async_connect_ble(
     *,
     write_uuid: str | None = None,
     with_response: bool | None = None,
+    pair: bool = False,
     disconnected_callback: Callable[[Any], None] | None = None,
 ) -> BleConnection:
     """Establish a GATT link to ``address`` and resolve its write channel.
 
     Routes through HA's bluetooth integration, so an ESPHome proxy is used
     transparently when it has the better path to the printer.
+
+    ``pair`` bonds the link after connecting. Some printers (MTP-II among
+    them) reject writes on an unbonded link with ATT 0x08, which surfaces as
+    :class:`BleAuthorizationError` on the first print rather than at connect
+    time — the peripheral accepts the connection and only refuses the data.
 
     Raises :class:`BluetoothUnavailableError` when the bluetooth integration
     isn't set up, :class:`BleNotFoundError` when no connectable scanner can
@@ -248,6 +309,7 @@ async def async_connect_ble(
         device,
         f"ESC/POS printer {address}",
         disconnected_callback=disconnected_callback,
+        pair=pair,
     )
     try:
         characteristic = select_write_characteristic(client, write_uuid)
@@ -260,12 +322,17 @@ async def async_connect_ble(
 
     use_response = prefers_response(characteristic) if with_response is None else with_response
     max_chunk = max_write_size(client, characteristic, with_response=use_response)
+    # Snapshot the GATT layout while the link is up. Diagnostics is the only
+    # place a user can see which characteristics their printer exposes, and
+    # it must not have to open a connection to do it.
+    gatt_layout = describe_services(client)
     _LOGGER.debug(
-        "BLE connected to %s char=%s response=%s max_chunk=%s",
+        "BLE connected to %s char=%s response=%s max_chunk=%s paired=%s",
         sanitize_log_message(address),
         characteristic.uuid,
         use_response,
         max_chunk,
+        pair,
     )
     return BleConnection(
         client,
@@ -273,6 +340,7 @@ async def async_connect_ble(
         address=address,
         with_response=use_response,
         max_chunk=max_chunk,
+        gatt_layout=gatt_layout,
     )
 
 

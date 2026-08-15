@@ -26,6 +26,9 @@ class FakeConnection:
         self.characteristic_uuid = _FF02
         self.disconnect_calls = 0
         self.writes: list[bytes] = []
+        self.gatt_layout: list[dict] = [
+            {"service_uuid": "svc", "characteristic_uuid": _FF02, "writable": True}
+        ]
 
     async def async_write(self, data, chunk_delay_s):
         self.writes.append(bytes(data))
@@ -373,10 +376,28 @@ class TestDiagnostics:
             "connected": True,
             "last_rssi": -60,
             "idle_disconnect_s": 30,
+            "pair": False,
             "write_uuid": _FF02,
             "with_response": True,
             "max_chunk": 20,
+            "gatt_layout": [],
         }
+
+    async def test_gatt_layout_survives_the_idle_disconnect(self, adapter):
+        """The service dump is the only way a user can find the right UUID.
+
+        It must still be readable in a diagnostics download after the idle
+        timer has dropped the link, or it would only ever appear during the
+        brief window a print holds the connection.
+        """
+        connection = FakeConnection()
+        with patch.object(ble_transport, "async_connect_ble", return_value=connection):
+            await adapter._async_acquire_connection()
+        await adapter._async_drop_connection()
+
+        diag = adapter.get_diagnostics()
+        assert diag["ble"]["connected"] is False
+        assert diag["ble"]["gatt_layout"] == connection.gatt_layout
 
 
 class TestConnectHop:

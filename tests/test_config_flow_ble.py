@@ -22,6 +22,7 @@ from custom_components.escpos_printer.config_flow import EscposConfigFlow
 from custom_components.escpos_printer.const import (
     CONF_BLE_ADDRESS,
     CONF_BLE_DEVICE,
+    CONF_BLE_PAIR,
     CONF_BLE_WITH_RESPONSE,
     CONF_BLE_WRITE_UUID,
     CONF_CONNECTION_TYPE,
@@ -200,6 +201,10 @@ class TestCanConnectBle:
         class Connection:
             characteristic_uuid = _FF02
             disconnected = False
+            probe_writes: list = []
+
+            async def async_write(self, data, chunk_delay_s):
+                type(self).probe_writes.append(bytes(data))
 
             async def async_disconnect(self):
                 type(self).disconnected = True
@@ -208,6 +213,9 @@ class TestCanConnectBle:
             ok, error, uuid = await _can_connect_ble(hass, "AA:BB:CC:DD:EE:FF", None, None)
 
         assert (ok, error, uuid) == (True, None, _FF02)
+        # The probe writes ESC @ to prove the write path works, not just the
+        # connect path -- a printer can accept the link and still reject data.
+        assert Connection.probe_writes == [b"\x1b\x40"]
         # The probe must not hold a scarce proxy connection slot afterwards.
         assert Connection.disconnected is True
 
@@ -610,3 +618,89 @@ class TestReconfigureBle:
                 result["flow_id"], {CONF_BLE_ADDRESS: "AA:BB:CC:DD:EE:FF"}
             )
         assert result2["errors"]["base"] == "ble_not_found"
+
+
+class TestPairingProbe:
+    """Setup-time detection of printers that require a bonded link."""
+
+    async def test_probe_reports_needs_pairing_on_authorization_error(self, hass):
+        """The whole point of writing during the probe rather than only connecting."""
+
+        class Connection:
+            characteristic_uuid = _FF02
+            disconnected = False
+
+            async def async_write(self, data, chunk_delay_s):
+                raise ble_transport.BleAuthorizationError("Insufficient authorization (8)")
+
+            async def async_disconnect(self):
+                type(self).disconnected = True
+
+        with patch.object(ble_transport, "async_connect_ble", return_value=Connection()):
+            ok, error, _uuid = await _can_connect_ble(hass, "AA:BB:CC:DD:EE:FF", None, None)
+
+        assert (ok, error) == (False, "needs_pairing")
+        # Still released, even on the failure path.
+        assert Connection.disconnected is True
+
+    async def test_needs_pairing_maps_to_its_own_message(self):
+        assert _ble_error_to_key("needs_pairing") == "ble_needs_pairing"
+
+    async def test_pair_flag_reaches_the_connect_call(self, hass):
+        class Connection:
+            characteristic_uuid = _FF02
+
+            async def async_write(self, data, chunk_delay_s):
+                pass
+
+            async def async_disconnect(self):
+                pass
+
+        with patch.object(ble_transport, "async_connect_ble", return_value=Connection()) as connect:
+            await _can_connect_ble(hass, "AA:BB:CC:DD:EE:FF", None, None, True)
+        assert connect.call_args.kwargs["pair"] is True
+
+    async def test_pairing_choice_is_stored_on_the_entry(self, hass, mock_ble_devices):
+        flow = _flow(hass)
+        with (
+            patch(
+                "custom_components.escpos_printer._config_flow.ble_steps._list_ble_devices",
+                return_value=mock_ble_devices,
+            ),
+            patch(
+                "custom_components.escpos_printer._config_flow.ble_steps._can_connect_ble",
+                return_value=(True, None, _FF02),
+            ) as probe,
+        ):
+            await flow.async_step_ble_select()
+            await flow.async_step_ble_select(
+                {
+                    CONF_BLE_DEVICE: "AA:BB:CC:DD:EE:FF",
+                    CONF_PROFILE: PROFILE_AUTO,
+                    SECTION_BLE_ADVANCED: {CONF_BLE_PAIR: True},
+                }
+            )
+        assert probe.call_args.args[4] is True
+        assert flow._user_data[CONF_BLE_PAIR] is True
+
+    async def test_pairing_defaults_off(self, hass, mock_ble_devices):
+        flow = _flow(hass)
+        with (
+            patch(
+                "custom_components.escpos_printer._config_flow.ble_steps._list_ble_devices",
+                return_value=mock_ble_devices,
+            ),
+            patch(
+                "custom_components.escpos_printer._config_flow.ble_steps._can_connect_ble",
+                return_value=(True, None, _FF02),
+            ),
+        ):
+            await flow.async_step_ble_select()
+            await flow.async_step_ble_select(
+                {
+                    CONF_BLE_DEVICE: "AA:BB:CC:DD:EE:FF",
+                    CONF_PROFILE: PROFILE_AUTO,
+                    SECTION_BLE_ADVANCED: {},
+                }
+            )
+        assert flow._user_data[CONF_BLE_PAIR] is False

@@ -22,16 +22,20 @@ class FakeCharacteristic:
 class FakeBleakClient:
     """Records writes so tests can assert on the exact wire bytes."""
 
-    def __init__(self, *, mtu_size=23, fail_on_write=None):
+    def __init__(self, *, mtu_size=23, fail_on_write=None, write_error=None):
         self.mtu_size = mtu_size
         self.is_connected = True
         self.writes: list[tuple[bytes, bool]] = []
         self.disconnect_calls = 0
         self._fail_on_write = fail_on_write
+        self._write_error = write_error or OSError("printer went away")
+        # describe_services() walks this at connect time to snapshot the
+        # device's GATT layout for diagnostics.
+        self.services: list = []
 
     async def write_gatt_char(self, characteristic, data, response=None):
         if self._fail_on_write is not None and len(self.writes) >= self._fail_on_write:
-            raise OSError("printer went away")
+            raise self._write_error
         self.writes.append((bytes(data), bool(response)))
 
     async def disconnect(self):
@@ -360,3 +364,100 @@ class TestConnectTimeout:
 
     def test_scales_with_configured_timeout(self):
         assert ble_transport.connect_timeout(10.0) > ble_transport.connect_timeout(4.0)
+
+
+class TestAuthorizationErrors:
+    """ATT 0x08 handling.
+
+    A printer that requires bonding accepts the connection and resolves its
+    characteristic normally, then rejects the first real write. Nothing
+    earlier in the flow can catch it, so the write path has to recognise it
+    and name the fix.
+    """
+
+    @pytest.mark.parametrize(
+        "message",
+        [
+            "BluetoothGATTErrorResponse: Insufficient authorization (8)",
+            "Insufficient Authentication",
+            "insufficient encryption",
+            "ATT error: 0x08",
+            "Device is not paired",
+        ],
+    )
+    def test_recognises_authorization_rejections(self, message):
+        assert ble_transport.is_authorization_error(OSError(message)) is True
+
+    @pytest.mark.parametrize(
+        "message",
+        ["connection timed out", "device disconnected", "out of connection slots"],
+    )
+    def test_ignores_unrelated_errors(self, message):
+        assert ble_transport.is_authorization_error(OSError(message)) is False
+
+    async def test_write_reraises_authorization_as_typed_error(self):
+        client = FakeBleakClient(
+            fail_on_write=0,
+            write_error=OSError("BluetoothGATTErrorResponse: Insufficient authorization (8)"),
+        )
+        with pytest.raises(ble_transport.BleAuthorizationError):
+            await _connection(client).async_write(b"abc", 0.0)
+
+    async def test_write_leaves_other_errors_untouched(self):
+        """Only authorization is special-cased; everything else stays as-is."""
+        client = FakeBleakClient(fail_on_write=0, write_error=OSError("radio exploded"))
+        with pytest.raises(OSError, match="radio exploded"):
+            await _connection(client).async_write(b"abc", 0.0)
+
+    async def test_write_does_not_retry_after_a_failure(self):
+        """A receipt is not idempotent -- a retry risks printing it twice.
+
+        See ROADMAP: retry only on positive evidence the job did not go.
+        """
+        client = FakeBleakClient(fail_on_write=1)  # first chunk ok, second fails
+        with pytest.raises(OSError):
+            await _connection(client, max_chunk=2).async_write(b"abcdef", 0.0)
+        assert len(client.writes) == 1
+
+    async def test_pair_flag_is_passed_to_establish_connection(self, hass):
+        hass.config.components.add("bluetooth")
+        client = FakeBleakClient()
+        characteristic = FakeCharacteristic(properties=("write",))
+        with (
+            patch.object(ble_transport, "async_ble_device", return_value=object()),
+            patch("bleak_retry_connector.establish_connection", return_value=client) as connect,
+            patch.object(ble_transport, "select_write_characteristic", return_value=characteristic),
+        ):
+            await ble_transport.async_connect_ble(hass, "AA:BB:CC:DD:EE:FF", pair=True)
+        assert connect.call_args.kwargs["pair"] is True
+
+    async def test_pair_defaults_to_off(self, hass):
+        """Bonding writes a bond slot on the proxy; never do it unasked."""
+        hass.config.components.add("bluetooth")
+        client = FakeBleakClient()
+        characteristic = FakeCharacteristic(properties=("write",))
+        with (
+            patch.object(ble_transport, "async_ble_device", return_value=object()),
+            patch("bleak_retry_connector.establish_connection", return_value=client) as connect,
+            patch.object(ble_transport, "select_write_characteristic", return_value=characteristic),
+        ):
+            await ble_transport.async_connect_ble(hass, "AA:BB:CC:DD:EE:FF")
+        assert connect.call_args.kwargs["pair"] is False
+
+    async def test_gatt_layout_is_captured_at_connect(self, hass):
+        """Diagnostics must be able to show the layout without a live link."""
+        hass.config.components.add("bluetooth")
+        client = FakeBleakClient()
+        characteristic = FakeCharacteristic(properties=("write",))
+        client.services = [
+            type("Svc", (), {"uuid": "svc-1", "characteristics": [characteristic]})()
+        ]
+        with (
+            patch.object(ble_transport, "async_ble_device", return_value=object()),
+            patch("bleak_retry_connector.establish_connection", return_value=client),
+            patch.object(ble_transport, "select_write_characteristic", return_value=characteristic),
+        ):
+            connection = await ble_transport.async_connect_ble(hass, "AA:BB:CC:DD:EE:FF")
+
+        assert connection.gatt_layout[0]["characteristic_uuid"] == _FF02
+        assert connection.gatt_layout[0]["writable"] is True

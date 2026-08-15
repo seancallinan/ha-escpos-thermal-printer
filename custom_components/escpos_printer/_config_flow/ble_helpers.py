@@ -27,6 +27,11 @@ from ..security import sanitize_log_message, validate_bluetooth_mac
 
 _LOGGER = logging.getLogger(__name__)
 
+# ESC @ — reset the printer to its power-on state. The standard ESC/POS
+# no-op: it advances no paper and prints nothing, which makes it the right
+# payload for proving the write path works before accepting an entry.
+_ESCPOS_INITIALIZE = b"\x1b\x40"
+
 # Advertised-name fragments typical of BLE thermal printers. BLE has no
 # Class-of-Device field and these printers rarely advertise a service UUID
 # in their advertisement (the printable characteristic only shows up after
@@ -81,6 +86,7 @@ _BLE_ERROR_KEY_MAP: dict[str, str] = {
     "no_write_char": "ble_no_write_char",
     "connect_failed": "ble_connect_failed",
     "no_bluetooth": "ble_no_bluetooth",
+    "needs_pairing": "ble_needs_pairing",
 }
 
 
@@ -158,13 +164,22 @@ async def _can_connect_ble(
     address: str,
     write_uuid: str | None,
     with_response: bool | None,
+    pair: bool = False,
 ) -> tuple[bool, str | None, str | None]:
-    """Probe a BLE printer by opening a real GATT link and closing it.
+    """Probe a BLE printer by opening a GATT link and writing to it.
 
     Returns ``(success, error_code, resolved_write_uuid)``. The resolved UUID
     is fed back into the entry so a later firmware quirk or reordered service
     table cannot silently move the print target — and so the diagnostics
     download records what was actually negotiated.
+
+    The probe **writes**, it does not merely connect. Some printers (MTP-II
+    and relatives) accept the connection and resolve their characteristic
+    normally, then reject the first actual write with ATT 0x08 because the
+    link isn't bonded. A connect-only probe reports those as healthy and the
+    user discovers the truth on their first print. ``ESC @`` (initialise) is
+    the harmless payload for this: it resets printer state and emits no
+    paper.
     """
     connection = None
     try:
@@ -173,7 +188,9 @@ async def _can_connect_ble(
             address,
             write_uuid=write_uuid,
             with_response=with_response,
+            pair=pair,
         )
+        await connection.async_write(_ESCPOS_INITIALIZE, 0.0)
     except ble_transport.BluetoothUnavailableError:
         return False, "no_bluetooth", None
     except ble_transport.BleNotFoundError:
@@ -185,6 +202,13 @@ async def _can_connect_ble(
             sanitize_log_message(str(exc)),
         )
         return False, "no_write_char", None
+    except ble_transport.BleAuthorizationError as exc:
+        _LOGGER.debug(
+            "BLE probe rejected for authorization on %s: %s",
+            sanitize_log_message(address),
+            sanitize_log_message(str(exc)),
+        )
+        return False, "needs_pairing", None
     except Exception as exc:
         _LOGGER.debug(
             "BLE probe failed for %s: %s",

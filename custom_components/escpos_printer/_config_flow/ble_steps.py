@@ -27,6 +27,7 @@ from ..const import (
     BLE_SHOW_ALL_KEY,
     CONF_BLE_ADDRESS,
     CONF_BLE_DEVICE,
+    CONF_BLE_PAIR,
     CONF_BLE_WITH_RESPONSE,
     CONF_BLE_WRITE_UUID,
     CONF_CONNECTION_TYPE,
@@ -129,7 +130,7 @@ class BleFlowMixin:
                 errors["base"] = "invalid_ble_address"
             else:
                 advanced = user_input.get(SECTION_BLE_ADVANCED) or {}
-                write_uuid, with_response, uuid_error = self._read_gatt_overrides(
+                write_uuid, with_response, pair, uuid_error = self._read_gatt_overrides(
                     advanced, user_input
                 )
                 if uuid_error:
@@ -141,6 +142,7 @@ class BleFlowMixin:
                     address=chosen["address"],
                     write_uuid=write_uuid,
                     with_response=with_response,
+                    pair=pair,
                     timeout=float(user_input.get(CONF_TIMEOUT, DEFAULT_TIMEOUT)),
                     profile=user_input.get(CONF_PROFILE, PROFILE_AUTO),
                     printer_name=chosen.get("name") or f"BLE Printer {chosen['address']}",
@@ -182,6 +184,7 @@ class BleFlowMixin:
                         vol.Optional(CONF_BLE_WITH_RESPONSE, default=_RESPONSE_AUTO): vol.In(
                             _RESPONSE_CHOICES
                         ),
+                        vol.Optional(CONF_BLE_PAIR, default=False): bool,
                     }
                 ),
                 {"collapsed": True},
@@ -226,7 +229,7 @@ class BleFlowMixin:
             if address is None:
                 errors["base"] = "invalid_ble_address"
 
-            write_uuid, with_response, uuid_error = self._read_gatt_overrides({}, user_input)
+            write_uuid, with_response, pair, uuid_error = self._read_gatt_overrides({}, user_input)
             if uuid_error:
                 errors["base"] = uuid_error
 
@@ -236,6 +239,7 @@ class BleFlowMixin:
                     address=address,
                     write_uuid=write_uuid,
                     with_response=with_response,
+                    pair=pair,
                     timeout=float(user_input.get(CONF_TIMEOUT, DEFAULT_TIMEOUT)),
                     profile=user_input.get(CONF_PROFILE, PROFILE_AUTO),
                     printer_name=f"BLE Printer {address}",
@@ -254,6 +258,7 @@ class BleFlowMixin:
                 vol.Optional(CONF_BLE_WITH_RESPONSE, default=_RESPONSE_AUTO): vol.In(
                     _RESPONSE_CHOICES
                 ),
+                vol.Optional(CONF_BLE_PAIR, default=False): bool,
                 vol.Optional(CONF_TIMEOUT, default=DEFAULT_TIMEOUT): vol.Coerce(float),
                 vol.Optional(CONF_PROFILE, default=PROFILE_AUTO): vol.In(profile_choices),
             }
@@ -280,7 +285,7 @@ class BleFlowMixin:
             if address is None:
                 errors["base"] = "invalid_ble_address"
 
-            write_uuid, with_response, uuid_error = self._read_gatt_overrides({}, user_input)
+            write_uuid, with_response, pair, uuid_error = self._read_gatt_overrides({}, user_input)
             if uuid_error:
                 errors["base"] = uuid_error
 
@@ -293,7 +298,7 @@ class BleFlowMixin:
                 self._abort_if_unique_id_mismatch()  # type: ignore[attr-defined]
 
                 ok, error_code, resolved_uuid = await _can_connect_ble(
-                    self.hass, address, write_uuid, with_response
+                    self.hass, address, write_uuid, with_response, pair
                 )
                 if ok:
                     return self.async_update_reload_and_abort(  # type: ignore[attr-defined,no-any-return]
@@ -303,6 +308,7 @@ class BleFlowMixin:
                             CONF_BLE_ADDRESS: address,
                             CONF_BLE_WRITE_UUID: write_uuid or resolved_uuid,
                             CONF_BLE_WITH_RESPONSE: with_response,
+                            CONF_BLE_PAIR: pair,
                             CONF_TIMEOUT: timeout,
                         },
                     )
@@ -315,6 +321,7 @@ class BleFlowMixin:
                 vol.Optional(CONF_BLE_WITH_RESPONSE, default=_RESPONSE_AUTO): vol.In(
                     _RESPONSE_CHOICES
                 ),
+                vol.Optional(CONF_BLE_PAIR, default=False): bool,
                 vol.Optional(CONF_TIMEOUT, default=DEFAULT_TIMEOUT): vol.Coerce(float),
             }
         )
@@ -328,7 +335,7 @@ class BleFlowMixin:
 
     def _read_gatt_overrides(
         self, section_input: dict[str, Any], user_input: dict[str, Any]
-    ) -> tuple[str | None, bool | None, str | None]:
+    ) -> tuple[str | None, bool | None, bool, str | None]:
         """Pull the write-UUID / with-response overrides out of a form payload.
 
         Returns ``(write_uuid, with_response, error_key)``. The UUID arrives
@@ -348,13 +355,15 @@ class BleFlowMixin:
             user_input.get(CONF_BLE_WITH_RESPONSE, _RESPONSE_AUTO),
         )
 
+        pair = bool(section_input.get(CONF_BLE_PAIR, user_input.get(CONF_BLE_PAIR, False)))
+
         write_uuid: str | None = None
         if raw_uuid:
             try:
                 write_uuid = validate_ble_uuid(raw_uuid)
             except HomeAssistantError:
-                return None, None, "invalid_ble_uuid"
-        return write_uuid, _parse_with_response(raw_response), None
+                return None, None, pair, "invalid_ble_uuid"
+        return write_uuid, _parse_with_response(raw_response), pair, None
 
     async def _finalize_ble_step(
         self,
@@ -362,6 +371,7 @@ class BleFlowMixin:
         address: str,
         write_uuid: str | None,
         with_response: bool | None,
+        pair: bool,
         timeout: float,
         profile: str,
         printer_name: str,
@@ -378,7 +388,7 @@ class BleFlowMixin:
 
         _LOGGER.debug("Attempting BLE connection test to %s", sanitize_log_message(address))
         ok, error_code, resolved_uuid = await _can_connect_ble(
-            self.hass, address, write_uuid, with_response
+            self.hass, address, write_uuid, with_response, pair
         )
         if ok:
             self._user_data = {
@@ -389,6 +399,7 @@ class BleFlowMixin:
                 # silently move where we print.
                 CONF_BLE_WRITE_UUID: write_uuid or resolved_uuid,
                 CONF_BLE_WITH_RESPONSE: with_response,
+                CONF_BLE_PAIR: pair,
                 CONF_TIMEOUT: timeout,
                 CONF_PROFILE: profile,
                 "_printer_name": printer_name,

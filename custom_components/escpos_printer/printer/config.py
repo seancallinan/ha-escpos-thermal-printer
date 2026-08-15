@@ -94,6 +94,7 @@ class BlePrinterConfig(BasePrinterConfig):
     address: str = ""
     write_uuid: str | None = None
     with_response: bool | None = None
+    pair: bool = False
     write_chunk_delay_ms: int = DEFAULT_CHUNK_DELAY_MS_BLE
     idle_disconnect_s: int = DEFAULT_BLE_IDLE_DISCONNECT_S
 

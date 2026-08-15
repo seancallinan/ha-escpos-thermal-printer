@@ -69,6 +69,10 @@ class BlePrinterAdapter(EscposPrinterAdapterBase):
         # Most recent advertisement RSSI, refreshed by _status_check and
         # surfaced by the diagnostic signal-strength sensor.
         self._last_rssi: int | None = None
+        # GATT layout from the most recent successful connect. Kept on the
+        # adapter rather than the connection so it outlives the idle
+        # disconnect and is still readable in a diagnostics download.
+        self._last_gatt_layout: list[dict[str, Any]] = []
 
     @property
     def config(self) -> BlePrinterConfig:
@@ -144,8 +148,10 @@ class BlePrinterAdapter(EscposPrinterAdapterBase):
             self._ble_config.address,
             write_uuid=self._ble_config.write_uuid,
             with_response=self._ble_config.with_response,
+            pair=self._ble_config.pair,
             disconnected_callback=self._handle_disconnect,
         )
+        self._last_gatt_layout = self._connection.gatt_layout
         return self._connection
 
     # ------------------------------------------------------------------
@@ -219,6 +225,18 @@ class BlePrinterAdapter(EscposPrinterAdapterBase):
             except Exception as exc:  # surfaced after the close below
                 flush_exc = exc
                 failed = True
+                if isinstance(exc, ble_transport.BleAuthorizationError) and not (
+                    self._ble_config.pair
+                ):
+                    # The printer accepted the connection and only refused the
+                    # data, so nothing earlier in the flow could have caught
+                    # this. Name the fix rather than leaving a bare ATT error.
+                    _LOGGER.error(
+                        "BLE printer %s refused the write because the link is not "
+                        "bonded (ATT insufficient authorization). Enable 'Pair with "
+                        "printer' in this entry's options and try again.",
+                        self._address_redacted,
+                    )
 
         await super()._release_printer(
             hass, printer, owned=owned, failed=failed, notify_status=notify_status
@@ -299,9 +317,15 @@ class BlePrinterAdapter(EscposPrinterAdapterBase):
             "connected": connection is not None and connection.is_connected,
             "last_rssi": self.last_rssi,
             "idle_disconnect_s": self._ble_config.idle_disconnect_s,
+            "pair": self._ble_config.pair,
             "write_uuid": connection.characteristic_uuid if connection is not None else None,
             "with_response": connection.with_response if connection is not None else None,
             "max_chunk": connection.max_chunk if connection is not None else None,
+            # Survives the idle disconnect: captured at connect time so a user
+            # chasing a wrong-characteristic problem can read the device's
+            # actual GATT layout without the download having to wake the
+            # printer. Empty until the first successful connect.
+            "gatt_layout": self._last_gatt_layout,
         }
         return diagnostics
 

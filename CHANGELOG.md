@@ -21,6 +21,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 - BLE entries expose a **Signal strength** diagnostic sensor (advertisement
   RSSI, disabled by default) for judging whether a printer needs a proxy
   closer to it.
+- BLE entries gained a **Pair with printer** option. Some printers accept the
+  connection and resolve their write characteristic normally, then reject the
+  actual print data with ATT 0x08 (insufficient authorization) because the link
+  isn't bonded — the MTP-II family does this. Off by default, since bonding
+  consumes one of an ESP32 proxy's few bond slots.
+- The BLE setup probe now **writes** (a harmless `ESC @` reset) instead of only
+  connecting, so a printer that needs bonding is caught during setup rather than
+  on the user's first print.
+- BLE diagnostics now include `gatt_layout`, the device's full characteristic
+  table captured at connect time. It survives the idle disconnect, so a
+  diagnostics download never has to wake the printer to produce it. This is what
+  `docs/ble.md` tells users to consult when auto-detection picks the wrong
+  characteristic.
 - New **BLE-safe** reliability profile (64px image slices, 200ms per-slice
   wait) for BLE printers that drop bytes partway through an image, plus
   per-entry **BLE write delay** and **BLE idle disconnect** options.
