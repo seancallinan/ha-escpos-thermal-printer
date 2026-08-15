@@ -107,7 +107,7 @@ Look for `bEndpointAddress`. Defaults are `0x82` (in) and `0x01` (out).
 
 Vendor ID isn't in the known list. Use **Browse all USB devices** or **Manual entry** with VID:PID.
 
-## Bluetooth issues
+## Bluetooth Classic (RFCOMM) issues
 
 ### Error key reference
 
@@ -122,6 +122,54 @@ Vendor ID isn't in the known list. Use **Browse all USB devices** or **Manual en
 | `cannot_connect_bt` | Catchall (errno not recognized) | Check HA debug logs |
 | `invalid_bt_mac` | MAC format invalid | Use `AA:BB:CC:DD:EE:FF` (uppercase, colons) |
 | `invalid_rfcomm_channel` | Channel out of range | Must be 1–30 (almost always 1) |
+
+## Bluetooth LE (BLE) issues
+
+### Error key reference
+
+| Error key | Likely cause | Action |
+|-----------|--------------|--------|
+| `ble_no_bluetooth` | HA's Bluetooth integration isn't set up | Add a Bluetooth adapter, or an ESPHome proxy with `active: true` |
+| `ble_not_found` | Printer out of range of every connectable scanner, or not advertising | Power it on; move a proxy closer. Many portable models advertise only for a few minutes after power-on |
+| `ble_connect_failed` | Already connected to a phone, at range edge, or the proxy is out of connection slots | Disconnect the other client; lower **BLE idle disconnect**; add a second proxy |
+| `ble_no_write_char` | Device exposes nothing writable — probably not an ESC/POS printer | If you're sure it is, set the write characteristic UUID manually |
+| `cannot_connect_ble` | Catchall | Check HA debug logs |
+| `invalid_ble_address` | Address format invalid | Use `AA:BB:CC:DD:EE:FF` |
+| `invalid_ble_uuid` | Characteristic UUID malformed | Use the 128-bit form or 16-bit shorthand (`ff02`) |
+
+### Printer missing from the BLE picker
+
+Choose **Show all discovered BLE devices...** — the default view filters to printer-like
+names, and plenty of printers advertise something generic.
+
+If it's still absent, the only scanner that can see it is passive. An ESPHome Bluetooth proxy
+must be configured with:
+
+```yaml
+bluetooth_proxy:
+  active: true
+```
+
+Non-connectable sightings are deliberately hidden, because a printer you can see but can never
+open a connection to would only fail later.
+
+### BLE prints start fine then turn to garbage
+
+Unacknowledged BLE writes have no backpressure — the printer can't tell you to slow down, it
+just drops bytes. In order of effectiveness:
+
+1. Raise **BLE write delay (ms)** (default 20) in the options flow.
+2. Set **Write acknowledgement** to *Always acknowledged*.
+3. Select the **BLE-safe** reliability profile (small image slices, long per-slice wait).
+
+### BLE printer connects but nothing prints
+
+Auto-detection picked the wrong characteristic — usually a vendor control channel rather than
+the data channel. Download diagnostics for the entry (**⋮ → Download diagnostics**); the dump
+lists every characteristic, which are writable, and which are recognised printer UUIDs. Set the
+right one via **Write characteristic UUID** in the reconfigure form.
+
+See [ble.md](ble.md) for the full BLE guide.
 
 ### "Bluetooth not available"
 

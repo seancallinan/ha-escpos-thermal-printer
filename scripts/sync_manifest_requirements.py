@@ -39,7 +39,7 @@ UVLOCK = ROOT / "uv.lock"
 # dev/CI reproducibility only. At HA runtime: Pillow arrives transitively via
 # python-escpos under HA's constraint, and bluez.py gracefully degrades when
 # dbus-fast is absent.
-MANIFEST_EXCLUDES: set[str] = {"pillow", "dbus-fast"}
+MANIFEST_EXCLUDES: set[str] = {"pillow", "dbus-fast", "bleak-retry-connector"}
 
 # Packages for which we intentionally keep a version range in the HA manifest
 # to avoid conflicts with Home Assistant's own pins.

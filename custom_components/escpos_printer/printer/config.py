@@ -20,6 +20,8 @@ from typing import Literal
 
 from ..const import (
     DEFAULT_BAUDRATE,
+    DEFAULT_BLE_IDLE_DISCONNECT_S,
+    DEFAULT_CHUNK_DELAY_MS_BLE,
     DEFAULT_IN_EP,
     DEFAULT_OUT_EP,
     DEFAULT_RFCOMM_CHANNEL,
@@ -79,6 +81,24 @@ class BluetoothPrinterConfig(BasePrinterConfig):
 
 
 @dataclass
+class BlePrinterConfig(BasePrinterConfig):
+    """Configuration for BLE (GATT) printers.
+
+    Distinct from :class:`BluetoothPrinterConfig`, which is Bluetooth
+    Classic / RFCOMM. ``write_uuid`` and ``with_response`` are ``None`` for
+    "auto-detect", which is what almost every entry uses; they exist for
+    printers whose GATT layout the heuristics get wrong.
+    """
+
+    connection_type: Literal["ble"] = field(default="ble", repr=False)
+    address: str = ""
+    write_uuid: str | None = None
+    with_response: bool | None = None
+    write_chunk_delay_ms: int = DEFAULT_CHUNK_DELAY_MS_BLE
+    idle_disconnect_s: int = DEFAULT_BLE_IDLE_DISCONNECT_S
+
+
+@dataclass
 class SerialPrinterConfig(BasePrinterConfig):
     """Configuration for serial (UART/RS-232) printers.
 
@@ -97,7 +117,11 @@ class SerialPrinterConfig(BasePrinterConfig):
 
 # Type alias for config union (use for type hints)
 PrinterConfigTypes = (
-    NetworkPrinterConfig | UsbPrinterConfig | BluetoothPrinterConfig | SerialPrinterConfig
+    NetworkPrinterConfig
+    | UsbPrinterConfig
+    | BluetoothPrinterConfig
+    | BlePrinterConfig
+    | SerialPrinterConfig
 )
 
 # Backward-compatible alias: PrinterConfig(...) still works and creates NetworkPrinterConfig

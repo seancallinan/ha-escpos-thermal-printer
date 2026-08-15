@@ -7,10 +7,12 @@ from typing import Any
 from homeassistant.helpers.device_registry import CONNECTION_NETWORK_MAC
 
 from custom_components.escpos_printer.const import (
+    CONF_BLE_ADDRESS,
     CONF_CONNECTION_TYPE,
     CONF_DETECTED_MANUFACTURER,
     CONF_DETECTED_MODEL,
     CONF_MAC_ADDRESS,
+    CONNECTION_TYPE_BLE,
     CONNECTION_TYPE_BLUETOOTH,
     CONNECTION_TYPE_NETWORK,
     CONNECTION_TYPE_SERIAL,
@@ -38,6 +40,7 @@ def test_model_by_connection_type() -> None:
         CONNECTION_TYPE_NETWORK: "Network Printer",
         CONNECTION_TYPE_USB: "USB Printer",
         CONNECTION_TYPE_BLUETOOTH: "Bluetooth Printer",
+        CONNECTION_TYPE_BLE: "BLE Printer",
         CONNECTION_TYPE_SERIAL: "Serial Printer",
     }
     for connection_type, expected_model in cases.items():
@@ -133,5 +136,29 @@ def test_device_info_includes_mac_connection_when_tracked() -> None:
 
 def test_device_info_no_connections_without_mac() -> None:
     entry = _FakeEntry(data={CONF_CONNECTION_TYPE: CONNECTION_TYPE_NETWORK})
+    info = build_device_info(entry)  # type: ignore[arg-type]
+    assert "connections" not in info
+
+
+def test_ble_entry_registers_a_bluetooth_connection() -> None:
+    """Ties the printer to the device HA's bluetooth integration already knows.
+
+    Without this the printer shows up as an unrelated device instead of one
+    reachable through a particular adapter or proxy.
+    """
+    from homeassistant.helpers.device_registry import CONNECTION_BLUETOOTH
+
+    entry = _FakeEntry(
+        data={
+            CONF_CONNECTION_TYPE: CONNECTION_TYPE_BLE,
+            CONF_BLE_ADDRESS: "AA:BB:CC:DD:EE:FF",
+        }
+    )
+    info = build_device_info(entry)  # type: ignore[arg-type]
+    assert info["connections"] == {(CONNECTION_BLUETOOTH, "AA:BB:CC:DD:EE:FF")}
+
+
+def test_ble_entry_without_address_has_no_connections() -> None:
+    entry = _FakeEntry(data={CONF_CONNECTION_TYPE: CONNECTION_TYPE_BLE})
     info = build_device_info(entry)  # type: ignore[arg-type]
     assert "connections" not in info

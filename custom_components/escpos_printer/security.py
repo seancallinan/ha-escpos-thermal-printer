@@ -1436,6 +1436,37 @@ def validate_rfcomm_channel(channel: int) -> int:
         raise HomeAssistantError("RFCOMM channel must be between 1 and 30")
     return value
 
+
+_BLE_UUID_RE = re.compile(
+    r"^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$",
+)
+# The Bluetooth SIG base UUID. 16- and 32-bit assigned numbers are shorthand
+# for `XXXXXXXX-0000-1000-8000-00805f9b34fb`; bleak always reports the
+# expanded 128-bit form, so we expand user input to match before comparing.
+_BLE_BASE_UUID_SUFFIX = "-0000-1000-8000-00805f9b34fb"
+
+
+def validate_ble_uuid(uuid: str) -> str:
+    """Validate and normalize a BLE GATT UUID to lowercase 128-bit form.
+
+    Accepts the full 128-bit form as well as 16-/32-bit shorthand (``ff02``,
+    ``0xFF02``, ``000018f0``), which is how printer documentation and
+    community write-ups usually quote these. Returns the expanded lowercase
+    form so it compares equal to what bleak reports.
+    """
+    if not isinstance(uuid, str):
+        raise HomeAssistantError("BLE UUID must be a string")
+    candidate = uuid.strip().lower().removeprefix("0x")
+    # 16-bit (4 hex) and 32-bit (8 hex) shorthand expand against the SIG base.
+    if len(candidate) in (4, 8) and all(c in "0123456789abcdef" for c in candidate):
+        candidate = f"{candidate.rjust(8, '0')}{_BLE_BASE_UUID_SUFFIX}"
+    if not _BLE_UUID_RE.match(candidate):
+        raise HomeAssistantError(
+            "Invalid BLE UUID; expected 128-bit form "
+            "(0000ff02-0000-1000-8000-00805f9b34fb) or 16/32-bit shorthand (ff02)"
+        )
+    return candidate
+
     # B-L1: ``secure_service_call`` was a never-implemented pass-through
     # decorator from an earlier iteration. The cross-cutting validation
     # it advertised (exception sanitisation in particular) now lives in

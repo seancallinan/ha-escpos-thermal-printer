@@ -3,93 +3,88 @@
   "config": {
     "flow_title": "{name}",
     "step": {
-      "user": {
-        "title": "Connection Type",
-        "description": "Select how your printer is connected.",
+      "ble_manual": {
+        "title": "Manual BLE configuration",
+        "description": "Enter the Bluetooth LE address of your printer. No pairing is required — Home Assistant connects on demand through whichever adapter or Bluetooth proxy can reach it.",
         "data": {
-          "connection_type": "Connection type"
-        },
-        "data_description": {
-          "connection_type": "Choose Network for TCP/IP connected printers or USB for directly connected printers."
-        }
-      },
-      "network": {
-        "title": "Configure network printer",
-        "description": "Enter the connection details for your ESC/POS network printer.",
-        "data": {
-          "host": "Host",
-          "port": "Port",
+          "ble_address": "BLE address",
+          "ble_write_uuid": "Write characteristic UUID",
+          "ble_with_response": "Write acknowledgement",
           "timeout": "Timeout (seconds)",
           "profile": "Printer profile"
         },
         "data_description": {
-          "host": "IP address or hostname of the printer.",
-          "port": "Network port (usually 9100).",
+          "ble_address": "Bluetooth LE address in AA:BB:CC:DD:EE:FF format.",
+          "ble_write_uuid": "Leave on Auto-detect unless you know your printer's data characteristic. The listed presets cover the common vendor conventions.",
+          "ble_with_response": "Acknowledged writes are slower but prevent dropped bytes on large images. Auto uses them whenever the characteristic supports them.",
           "timeout": "Connection timeout in seconds.",
-          "profile": "Select your printer model — or Generic (no profile) if it isn't listed; rebadged models appear as \"(compatible)\" entries. Choose 'Custom' to enter a profile name manually."
+          "profile": "Select your printer model — or Generic (no profile) if it isn't listed; rebadged models appear as \"(compatible)\" entries."
         }
       },
-      "usb_select": {
-        "title": "Configure USB printer",
-        "description": "Select your USB thermal printer from the list of detected devices.",
+      "ble_no_devices": {
+        "title": "No BLE devices found",
+        "description": "Home Assistant can't currently connect to any Bluetooth LE devices. BLE printers need no pairing, but they do need a **connectable** scanner in range.\n\n**Check the Bluetooth integration**: go to Settings → Devices & services and confirm a Bluetooth adapter or proxy is set up.\n\n**Using an ESPHome Bluetooth proxy?** The proxy must allow connections, not just advertisements. Its ESPHome config needs:\n\n```\nbluetooth_proxy:\n  active: true\n```\n\nA proxy without `active: true` can see your printer but can never print to it, so it is deliberately hidden from this list.\n\n**Check the printer**: power it on and confirm it is advertising — most portable models advertise only for a few minutes after power-on.\n\nSee the [BLE setup guide]({docs_url}) for details. If you already know the printer's address, **submit this form** to enter it manually.",
+        "data": {},
+        "data_description": {}
+      },
+      "ble_select": {
+        "title": "Configure BLE printer",
+        "description": "Select a Bluetooth LE printer. This list comes from Home Assistant's Bluetooth integration, so it includes printers reached through an ESPHome (or other) Bluetooth proxy as well as ones in range of this host. BLE printers need no pairing. If yours isn't listed, make sure it is powered on and advertising, or choose Manual address entry.",
         "data": {
-          "usb_device": "USB Device",
+          "ble_device": "BLE device",
           "timeout": "Timeout (seconds)",
           "profile": "Printer profile"
         },
         "data_description": {
-          "usb_device": "Select your printer from the detected USB devices.",
+          "ble_device": "Select your printer. Devices are listed strongest signal first; the dBm value shows how well Home Assistant currently hears each one.",
           "timeout": "Connection timeout in seconds.",
           "profile": "Select your printer model — or Generic (no profile) if it isn't listed; rebadged models appear as \"(compatible)\" entries."
+        },
+        "sections": {
+          "advanced_options": {
+            "name": "Advanced options",
+            "data": {
+              "ble_write_uuid": "Write characteristic UUID",
+              "ble_with_response": "Write acknowledgement"
+            },
+            "data_description": {
+              "ble_write_uuid": "Leave blank to auto-detect. Set this only if your printer accepts a connection but nothing prints — the diagnostics download lists every characteristic the device exposes. Accepts the full 128-bit form or 16-bit shorthand such as ff02.",
+              "ble_with_response": "Acknowledged writes are slower but let the printer apply backpressure, which prevents dropped bytes in large images. Auto uses acknowledged writes whenever the characteristic supports them."
+            }
+          }
         }
       },
-      "usb_all_devices": {
-        "title": "Select USB device",
-        "description": "Browse all connected USB devices. Note: Not all USB devices are thermal printers - select your printer from the list below.",
+      "bluetooth_channel_retry": {
+        "title": "Try a different RFCOMM channel",
+        "description": "The printer at {mac} refused the default RFCOMM channel (1). Most ESC/POS printers use channel 1 — your printer may use a different one. Run `bluetoothctl info [MAC]` on the host and look for the SerialPort service-record 'Channel:' line. If you don't have shell access, try 2 or 3.",
         "data": {
-          "usb_device": "USB Device",
-          "in_ep": "Input endpoint (advanced)",
-          "out_ep": "Output endpoint (advanced)",
+          "rfcomm_channel": "RFCOMM channel"
+        },
+        "data_description": {
+          "rfcomm_channel": "Channel number (1-30); see the printer's SDP service record."
+        }
+      },
+      "bluetooth_manual": {
+        "title": "Manual Bluetooth configuration",
+        "description": "Enter the Bluetooth MAC address of a printer you have already paired on the host (HA OS: Settings → System → Hardware; otherwise 'bluetoothctl pair [MAC]'). The integration only opens an RFCOMM socket — pairing must be done outside the integration.",
+        "data": {
+          "bt_mac": "MAC address",
+          "rfcomm_channel": "RFCOMM channel",
           "timeout": "Timeout (seconds)",
           "profile": "Printer profile"
         },
         "data_description": {
-          "usb_device": "Select your printer from all connected USB devices.",
-          "in_ep": "Leave at default (130) unless your printer doesn't work. This is the USB address for receiving status from the printer.",
-          "out_ep": "Leave at default (1) unless your printer doesn't work. This is the USB address for sending data to the printer.",
+          "bt_mac": "Bluetooth MAC address in AA:BB:CC:DD:EE:FF format.",
+          "rfcomm_channel": "RFCOMM channel (almost always 1 for ESC/POS printers).",
           "timeout": "Connection timeout in seconds.",
           "profile": "Select your printer model — or Generic (no profile) if it isn't listed; rebadged models appear as \"(compatible)\" entries."
         }
       },
-      "usb_manual": {
-        "title": "Manual USB configuration",
-        "description": "Enter the USB Vendor ID and Product ID for your printer. These can be found using 'lsusb' on Linux or Device Manager on Windows.",
-        "data": {
-          "vendor_id": "Vendor ID",
-          "product_id": "Product ID",
-          "in_ep": "Input endpoint (advanced)",
-          "out_ep": "Output endpoint (advanced)",
-          "timeout": "Timeout (seconds)",
-          "profile": "Printer profile"
-        },
-        "data_description": {
-          "vendor_id": "USB Vendor ID. Use the 0x-prefixed hex form shown by lsusb / discovery, e.g. 0x04B8 (recommended). A plain decimal number is also accepted.",
-          "product_id": "USB Product ID. Use the 0x-prefixed hex form, e.g. 0x0E03. A plain decimal number is also accepted.",
-          "in_ep": "Leave at default (130) unless your printer doesn't work. This is the USB address for receiving status from the printer.",
-          "out_ep": "Leave at default (1) unless your printer doesn't work. This is the USB address for sending data to the printer.",
-          "timeout": "Connection timeout in seconds.",
-          "profile": "Select your printer model — or Generic (no profile) if it isn't listed; rebadged models appear as \"(compatible)\" entries."
-        }
-      },
-      "usb_confirm": {
-        "title": "Confirm USB printer",
-        "description": "A USB thermal printer was detected: {printer_name}. Configure the printer profile.",
-        "data": {
-          "profile": "Printer profile"
-        },
-        "data_description": {
-          "profile": "Select your printer model — or Generic (no profile) if it isn't listed; rebadged models appear as \"(compatible)\" entries."
-        }
+      "bluetooth_no_devices": {
+        "title": "No paired Bluetooth printers found",
+        "description": "Your Home Assistant host can't see any paired Bluetooth printers. Pair the printer first, then come back to this screen.\n\n**On Home Assistant OS / Supervised**: open Settings → Devices & services → Bluetooth, put your printer into pairing mode, and accept the pairing.\n\n**On Home Assistant Core or Container**: pair from the host shell:\n\n```\nbluetoothctl\n[bluetooth]# scan on\n[bluetooth]# pair AA:BB:CC:DD:EE:FF\n[bluetooth]# trust AA:BB:CC:DD:EE:FF\n```\n\nIf bluez D-Bus isn't reachable from this container (rootless Docker, no `/run/dbus` mount), use the **socat host bridge** described in the [setup guide]({docs_url}). Or if you already know the printer's MAC address, **submit this form** to enter it manually.",
+        "data": {},
+        "data_description": {}
       },
       "bluetooth_select": {
         "title": "Configure Bluetooth printer",
@@ -116,38 +111,6 @@
           }
         }
       },
-      "bluetooth_manual": {
-        "title": "Manual Bluetooth configuration",
-        "description": "Enter the Bluetooth MAC address of a printer you have already paired on the host (HA OS: Settings → System → Hardware; otherwise 'bluetoothctl pair [MAC]'). The integration only opens an RFCOMM socket — pairing must be done outside the integration.",
-        "data": {
-          "bt_mac": "MAC address",
-          "rfcomm_channel": "RFCOMM channel",
-          "timeout": "Timeout (seconds)",
-          "profile": "Printer profile"
-        },
-        "data_description": {
-          "bt_mac": "Bluetooth MAC address in AA:BB:CC:DD:EE:FF format.",
-          "rfcomm_channel": "RFCOMM channel (almost always 1 for ESC/POS printers).",
-          "timeout": "Connection timeout in seconds.",
-          "profile": "Select your printer model — or Generic (no profile) if it isn't listed; rebadged models appear as \"(compatible)\" entries."
-        }
-      },
-      "bluetooth_no_devices": {
-        "title": "No paired Bluetooth printers found",
-        "description": "Your Home Assistant host can't see any paired Bluetooth printers. Pair the printer first, then come back to this screen.\n\n**On Home Assistant OS / Supervised**: open Settings → Devices & services → Bluetooth, put your printer into pairing mode, and accept the pairing.\n\n**On Home Assistant Core or Container**: pair from the host shell:\n\n```\nbluetoothctl\n[bluetooth]# scan on\n[bluetooth]# pair AA:BB:CC:DD:EE:FF\n[bluetooth]# trust AA:BB:CC:DD:EE:FF\n```\n\nIf bluez D-Bus isn't reachable from this container (rootless Docker, no `/run/dbus` mount), use the **socat host bridge** described in the [setup guide]({docs_url}). Or if you already know the printer's MAC address, **submit this form** to enter it manually.",
-        "data": {},
-        "data_description": {}
-      },
-      "bluetooth_channel_retry": {
-        "title": "Try a different RFCOMM channel",
-        "description": "The printer at {mac} refused the default RFCOMM channel (1). Most ESC/POS printers use channel 1 — your printer may use a different one. Run `bluetoothctl info [MAC]` on the host and look for the SerialPort service-record 'Channel:' line. If you don't have shell access, try 2 or 3.",
-        "data": {
-          "rfcomm_channel": "RFCOMM channel"
-        },
-        "data_description": {
-          "rfcomm_channel": "Channel number (1-30); see the printer's SDP service record."
-        }
-      },
       "codepage": {
         "title": "Printer settings",
         "description": "Configure encoding and printing defaults for your printer.",
@@ -166,16 +129,6 @@
           "impl": "ESC/POS command set used to print images. Auto follows the printer profile; override if images print garbled or fail.",
           "default_align": "Default text alignment for printing.",
           "default_cut": "Default paper cut mode after printing."
-        }
-      },
-      "custom_profile": {
-        "title": "Custom printer profile",
-        "description": "Enter the profile name as defined in escpos-printer-db.",
-        "data": {
-          "custom_profile": "Profile name"
-        },
-        "data_description": {
-          "custom_profile": "The exact profile key from escpos-printer-db (e.g., 'TM-T88V', 'default')."
         }
       },
       "custom_codepage": {
@@ -198,20 +151,60 @@
           "custom_line_width": "Number of characters that fit on one line (e.g., 32, 42, 48)."
         }
       },
-      "serial": {
-        "title": "Configure serial printer",
-        "description": "Select your printer's serial port and configure connection settings.",
+      "custom_profile": {
+        "title": "Custom printer profile",
+        "description": "Enter the profile name as defined in escpos-printer-db.",
         "data": {
-          "serial_port": "Serial port",
-          "baudrate": "Baud rate",
+          "custom_profile": "Profile name"
+        },
+        "data_description": {
+          "custom_profile": "The exact profile key from escpos-printer-db (e.g., 'TM-T88V', 'default')."
+        }
+      },
+      "network": {
+        "title": "Configure network printer",
+        "description": "Enter the connection details for your ESC/POS network printer.",
+        "data": {
+          "host": "Host",
+          "port": "Port",
           "timeout": "Timeout (seconds)",
           "profile": "Printer profile"
         },
         "data_description": {
-          "serial_port": "Serial port path (e.g. /dev/ttyUSB0, /dev/ttyACM0, COM3) or URL (e.g. esphome://host:6053?port_name=Name, rfc2217://host:2217, socket://host:9100).",
-          "baudrate": "Baud rate for the serial connection.",
+          "host": "IP address or hostname of the printer.",
+          "port": "Network port (usually 9100).",
           "timeout": "Connection timeout in seconds.",
           "profile": "Select your printer model — or Generic (no profile) if it isn't listed; rebadged models appear as \"(compatible)\" entries. Choose 'Custom' to enter a profile name manually."
+        }
+      },
+      "reconfigure_ble": {
+        "title": "Update BLE printer connection",
+        "description": "Update the Bluetooth LE address and connection settings for your printer.",
+        "data": {
+          "ble_address": "BLE address",
+          "ble_write_uuid": "Write characteristic UUID",
+          "ble_with_response": "Write acknowledgement",
+          "timeout": "Timeout (seconds)"
+        },
+        "data_description": {
+          "ble_address": "Bluetooth LE address in AA:BB:CC:DD:EE:FF format. Pointing this entry at a different address is not allowed — add a second printer instead.",
+          "ble_write_uuid": "Leave blank to auto-detect the printer's data characteristic.",
+          "ble_with_response": "Acknowledged writes are slower but prevent dropped bytes on large images.",
+          "timeout": "Connection timeout in seconds."
+        }
+      },
+      "reconfigure_bluetooth": {
+        "title": "Update Bluetooth printer connection",
+        "description": "Update the Bluetooth MAC address and connection settings for your printer.",
+        "data": {
+          "bt_mac": "MAC address",
+          "rfcomm_channel": "RFCOMM channel",
+          "timeout": "Timeout (seconds)"
+        },
+        "data_description": {
+          "bt_mac": "Bluetooth MAC address in AA:BB:CC:DD:EE:FF format.",
+          "rfcomm_channel": "RFCOMM channel (almost always 1 for ESC/POS printers).",
+          "timeout": "Connection timeout in seconds."
         }
       },
       "reconfigure_network": {
@@ -242,20 +235,6 @@
           "timeout": "Connection timeout in seconds."
         }
       },
-      "reconfigure_bluetooth": {
-        "title": "Update Bluetooth printer connection",
-        "description": "Update the Bluetooth MAC address and connection settings for your printer.",
-        "data": {
-          "bt_mac": "MAC address",
-          "rfcomm_channel": "RFCOMM channel",
-          "timeout": "Timeout (seconds)"
-        },
-        "data_description": {
-          "bt_mac": "Bluetooth MAC address in AA:BB:CC:DD:EE:FF format.",
-          "rfcomm_channel": "RFCOMM channel (almost always 1 for ESC/POS printers).",
-          "timeout": "Connection timeout in seconds."
-        }
-      },
       "reconfigure_usb": {
         "title": "Update USB printer connection",
         "description": "Re-select your USB thermal printer from the list of detected devices.",
@@ -281,38 +260,133 @@
           "product_id": "USB Product ID. Use the 0x-prefixed hex form, e.g. 0x0E03. A plain decimal number is also accepted.",
           "timeout": "Connection timeout in seconds."
         }
+      },
+      "serial": {
+        "title": "Configure serial printer",
+        "description": "Select your printer's serial port and configure connection settings.",
+        "data": {
+          "serial_port": "Serial port",
+          "baudrate": "Baud rate",
+          "timeout": "Timeout (seconds)",
+          "profile": "Printer profile"
+        },
+        "data_description": {
+          "serial_port": "Serial port path (e.g. /dev/ttyUSB0, /dev/ttyACM0, COM3) or URL (e.g. esphome://host:6053?port_name=Name, rfc2217://host:2217, socket://host:9100).",
+          "baudrate": "Baud rate for the serial connection.",
+          "timeout": "Connection timeout in seconds.",
+          "profile": "Select your printer model — or Generic (no profile) if it isn't listed; rebadged models appear as \"(compatible)\" entries. Choose 'Custom' to enter a profile name manually."
+        }
+      },
+      "usb_all_devices": {
+        "title": "Select USB device",
+        "description": "Browse all connected USB devices. Note: Not all USB devices are thermal printers - select your printer from the list below.",
+        "data": {
+          "usb_device": "USB Device",
+          "in_ep": "Input endpoint (advanced)",
+          "out_ep": "Output endpoint (advanced)",
+          "timeout": "Timeout (seconds)",
+          "profile": "Printer profile"
+        },
+        "data_description": {
+          "usb_device": "Select your printer from all connected USB devices.",
+          "in_ep": "Leave at default (130) unless your printer doesn't work. This is the USB address for receiving status from the printer.",
+          "out_ep": "Leave at default (1) unless your printer doesn't work. This is the USB address for sending data to the printer.",
+          "timeout": "Connection timeout in seconds.",
+          "profile": "Select your printer model — or Generic (no profile) if it isn't listed; rebadged models appear as \"(compatible)\" entries."
+        }
+      },
+      "usb_confirm": {
+        "title": "Confirm USB printer",
+        "description": "A USB thermal printer was detected: {printer_name}. Configure the printer profile.",
+        "data": {
+          "profile": "Printer profile"
+        },
+        "data_description": {
+          "profile": "Select your printer model — or Generic (no profile) if it isn't listed; rebadged models appear as \"(compatible)\" entries."
+        }
+      },
+      "usb_manual": {
+        "title": "Manual USB configuration",
+        "description": "Enter the USB Vendor ID and Product ID for your printer. These can be found using 'lsusb' on Linux or Device Manager on Windows.",
+        "data": {
+          "vendor_id": "Vendor ID",
+          "product_id": "Product ID",
+          "in_ep": "Input endpoint (advanced)",
+          "out_ep": "Output endpoint (advanced)",
+          "timeout": "Timeout (seconds)",
+          "profile": "Printer profile"
+        },
+        "data_description": {
+          "vendor_id": "USB Vendor ID. Use the 0x-prefixed hex form shown by lsusb / discovery, e.g. 0x04B8 (recommended). A plain decimal number is also accepted.",
+          "product_id": "USB Product ID. Use the 0x-prefixed hex form, e.g. 0x0E03. A plain decimal number is also accepted.",
+          "in_ep": "Leave at default (130) unless your printer doesn't work. This is the USB address for receiving status from the printer.",
+          "out_ep": "Leave at default (1) unless your printer doesn't work. This is the USB address for sending data to the printer.",
+          "timeout": "Connection timeout in seconds.",
+          "profile": "Select your printer model — or Generic (no profile) if it isn't listed; rebadged models appear as \"(compatible)\" entries."
+        }
+      },
+      "usb_select": {
+        "title": "Configure USB printer",
+        "description": "Select your USB thermal printer from the list of detected devices.",
+        "data": {
+          "usb_device": "USB Device",
+          "timeout": "Timeout (seconds)",
+          "profile": "Printer profile"
+        },
+        "data_description": {
+          "usb_device": "Select your printer from the detected USB devices.",
+          "timeout": "Connection timeout in seconds.",
+          "profile": "Select your printer model — or Generic (no profile) if it isn't listed; rebadged models appear as \"(compatible)\" entries."
+        }
+      },
+      "user": {
+        "title": "Connection Type",
+        "description": "Select how your printer is connected.",
+        "data": {
+          "connection_type": "Connection type"
+        },
+        "data_description": {
+          "connection_type": "Choose Network for TCP/IP connected printers or USB for directly connected printers."
+        }
       }
     },
     "error": {
-      "cannot_connect": "Failed to connect to the network printer. Check the IP address and port (most ESC/POS printers listen on 9100), that the printer is powered on and reachable on the same network, and that no firewall is blocking the connection. If the printer sleeps when idle, try printing once to wake it.",
-      "cannot_connect_usb": "Failed to connect to USB printer. Check that the printer is connected and permissions are configured correctly.",
-      "usb_permission_denied": "Permission denied accessing USB device. On Linux, add udev rules or run with appropriate permissions. On Docker/HAOS, ensure the USB device is passed through to the container.",
-      "usb_kernel_driver_active": "A kernel driver is active for this USB device. Stop other printing services or detach/blacklist the driver (e.g., usblp on Linux).",
-      "usb_device_busy": "USB device is busy. Another application or driver may be using the printer.",
-      "usb_io_error": "USB I/O error while opening the device. This can be transient (reset, autosuspend, or power issue). Try again or replug the printer.",
-      "usb_device_not_found": "USB device not found. Verify the printer is connected and the Vendor ID/Product ID are correct.",
-      "usb_backend_missing": "USB backend (libusb) not found. Install libusb on your system.",
       "already_configured": "This printer is already configured.",
-      "invalid_profile": "Invalid printer profile name.",
-      "invalid_codepage": "Invalid codepage/encoding.",
-      "invalid_line_width": "Invalid line width. Must be a positive number.",
-      "invalid_usb_device": "Invalid USB device selection.",
-      "invalid_discovery_info": "Invalid USB discovery information.",
-      "invalid_endpoint": "Invalid USB endpoint address. Must be between 0x00 and 0xFF (0-255).",
-      "cannot_connect_bt": "Failed to connect to Bluetooth printer. Verify the device is paired, powered on, and within range.",
-      "bt_unavailable": "Bluetooth Classic (AF_BLUETOOTH/RFCOMM) is not available in this environment. On Home Assistant Container this typically means the container needs '--net=host' and the NET_ADMIN/NET_RAW capabilities. See the README for setup instructions.",
-      "bt_permission_denied": "Permission denied opening the Bluetooth socket. Ensure the Home Assistant process can access bluez (typically requires the 'bluetooth' group on bare Linux).",
+      "ble_connect_failed": "Could not open a Bluetooth LE connection to the printer. It may be out of range, already connected to another device, or out of free connection slots on the proxy.",
+      "ble_no_bluetooth": "Home Assistant's Bluetooth integration is not set up. Add a Bluetooth adapter, or an ESPHome Bluetooth proxy with 'active: true', then try again.",
+      "ble_no_write_char": "Connected, but the device exposes no writable characteristic — it is probably not a BLE ESC/POS printer. If you know it is, set the write characteristic UUID manually.",
+      "ble_not_found": "No Bluetooth adapter or proxy can currently reach that printer. Check that it is powered on and advertising, and that a connectable scanner is in range.",
+      "bt_channel_refused": "The printer is reachable but refused the RFCOMM channel. Most ESC/POS printers use channel 1 — try a different channel, or run 'bluetoothctl info [MAC]' on the host to confirm the SerialPort service-record channel.",
       "bt_device_not_found": "Bluetooth device not found. Pair the printer first using 'bluetoothctl' on the host or HA OS Settings → System → Hardware.",
       "bt_host_down": "Bluetooth printer is not reachable. Make sure it's powered on, within range, and not currently connected to another host (most BT printers accept only one connection at a time).",
+      "bt_permission_denied": "Permission denied opening the Bluetooth socket. Ensure the Home Assistant process can access bluez (typically requires the 'bluetooth' group on bare Linux).",
       "bt_timeout": "Timed out connecting to Bluetooth printer. The printer may be asleep — try printing once to wake it, or increase the timeout.",
-      "bt_channel_refused": "The printer is reachable but refused the RFCOMM channel. Most ESC/POS printers use channel 1 — try a different channel, or run 'bluetoothctl info [MAC]' on the host to confirm the SerialPort service-record channel.",
-      "invalid_bt_mac": "Invalid Bluetooth MAC address. Expected format AA:BB:CC:DD:EE:FF.",
-      "invalid_rfcomm_channel": "Invalid RFCOMM channel. Must be between 1 and 30.",
+      "bt_unavailable": "Bluetooth Classic (AF_BLUETOOTH/RFCOMM) is not available in this environment. On Home Assistant Container this typically means the container needs '--net=host' and the NET_ADMIN/NET_RAW capabilities. See the README for setup instructions.",
+      "cannot_connect": "Failed to connect to the network printer. Check the IP address and port (most ESC/POS printers listen on 9100), that the printer is powered on and reachable on the same network, and that no firewall is blocking the connection. If the printer sleeps when idle, try printing once to wake it.",
+      "cannot_connect_ble": "Failed to connect to the BLE printer.",
+      "cannot_connect_bt": "Failed to connect to Bluetooth printer. Verify the device is paired, powered on, and within range.",
       "cannot_connect_serial": "Failed to connect to serial printer. Check that the port exists and permissions are configured correctly.",
+      "cannot_connect_usb": "Failed to connect to USB printer. Check that the printer is connected and permissions are configured correctly.",
+      "invalid_baudrate": "Invalid baud rate. Select one of the supported rates.",
+      "invalid_ble_address": "Invalid Bluetooth LE address. Expected format: AA:BB:CC:DD:EE:FF",
+      "invalid_ble_uuid": "Invalid characteristic UUID. Use the 128-bit form (0000ff02-0000-1000-8000-00805f9b34fb) or 16-bit shorthand (ff02).",
+      "invalid_bt_mac": "Invalid Bluetooth MAC address. Expected format AA:BB:CC:DD:EE:FF.",
+      "invalid_codepage": "Invalid codepage/encoding.",
+      "invalid_discovery_info": "Invalid USB discovery information.",
+      "invalid_endpoint": "Invalid USB endpoint address. Must be between 0x00 and 0xFF (0-255).",
+      "invalid_line_width": "Invalid line width. Must be a positive number.",
+      "invalid_profile": "Invalid printer profile name.",
+      "invalid_rfcomm_channel": "Invalid RFCOMM channel. Must be between 1 and 30.",
+      "invalid_usb_device": "Invalid USB device selection.",
       "serial_permission_denied": "Permission denied accessing serial port. On Linux, add the Home Assistant user to the 'dialout' group (sudo usermod -aG dialout homeassistant).",
-      "serial_port_not_found": "Serial port not found. Verify the port path or URL is correct.",
       "serial_port_busy": "Serial port is busy. Another process may be using it.",
-      "invalid_baudrate": "Invalid baud rate. Select one of the supported rates."
+      "serial_port_not_found": "Serial port not found. Verify the port path or URL is correct.",
+      "usb_backend_missing": "USB backend (libusb) not found. Install libusb on your system.",
+      "usb_device_busy": "USB device is busy. Another application or driver may be using the printer.",
+      "usb_device_not_found": "USB device not found. Verify the printer is connected and the Vendor ID/Product ID are correct.",
+      "usb_io_error": "USB I/O error while opening the device. This can be transient (reset, autosuspend, or power issue). Try again or replug the printer.",
+      "usb_kernel_driver_active": "A kernel driver is active for this USB device. Stop other printing services or detach/blacklist the driver (e.g., usblp on Linux).",
+      "usb_permission_denied": "Permission denied accessing USB device. On Linux, add udev rules or run with appropriate permissions. On Docker/HAOS, ensure the USB device is passed through to the container."
     },
     "abort": {
       "already_configured": "This printer is already configured.",
@@ -366,7 +440,9 @@
           "status_interval": "Status check interval (seconds)",
           "allow_local_image_urls": "Allow local image URLs",
           "serial_write_chunk_size": "Write chunk size (bytes)",
-          "serial_write_chunk_delay_ms": "Inter-chunk delay (ms)"
+          "serial_write_chunk_delay_ms": "Inter-chunk delay (ms)",
+          "ble_write_chunk_delay_ms": "BLE write delay (ms)",
+          "ble_idle_disconnect": "BLE idle disconnect (seconds)"
         },
         "data_description": {
           "timeout": "Connection timeout in seconds.",
@@ -382,7 +458,9 @@
           "status_interval": "How often to check printer status (0 to disable).",
           "allow_local_image_urls": "Permit print_image_url (and the other image services) to fetch URLs that resolve to private/LAN/loopback addresses and to use non-standard ports (e.g. a local camera, a Frigate proxy on :5000, or your Home Assistant instance on :8123). Off by default. Cloud-metadata/link-local addresses stay blocked even when enabled.",
           "serial_write_chunk_size": "Maximum bytes per write call. Set to 128 for ESPHome/ESP32 serial proxies to prevent buffer overruns. 0 disables chunking.",
-          "serial_write_chunk_delay_ms": "Pause between consecutive chunks (milliseconds). Allows the receiving device time to drain its buffer. Only applies when chunk size is non-zero."
+          "serial_write_chunk_delay_ms": "Pause between consecutive chunks (milliseconds). Allows the receiving device time to drain its buffer. Only applies when chunk size is non-zero.",
+          "ble_write_chunk_delay_ms": "Pause between individual BLE packets. Increase if large images print with gaps or garbage; 0 sends as fast as the link allows.",
+          "ble_idle_disconnect": "How long to hold the Bluetooth LE connection open after a print. Keeping it open makes back-to-back prints much faster, but holds one of the connection slots on your Bluetooth proxy. Set to 0 to disconnect after every print."
         }
       },
       "calibrate_confirm": {
@@ -496,6 +574,9 @@
           "low": "Low",
           "out": "Out"
         }
+      },
+      "signal_strength": {
+        "name": "Signal strength"
       }
     }
   },

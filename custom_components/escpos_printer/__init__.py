@@ -22,6 +22,11 @@ from .capabilities import (
 from .const import (
     CONF_ALLOW_LOCAL_IMAGE_URLS,
     CONF_BAUDRATE,
+    CONF_BLE_ADDRESS,
+    CONF_BLE_IDLE_DISCONNECT,
+    CONF_BLE_WITH_RESPONSE,
+    CONF_BLE_WRITE_CHUNK_DELAY_MS,
+    CONF_BLE_WRITE_UUID,
     CONF_BT_MAC,
     CONF_CODEPAGE,
     CONF_CONNECTION_TYPE,
@@ -43,6 +48,7 @@ from .const import (
     CONF_TIMEOUT,
     CONF_VENDOR_ID,
     CONF_WIDTH_PIXELS,
+    CONNECTION_TYPE_BLE,
     CONNECTION_TYPE_BLUETOOTH,
     CONNECTION_TYPE_NETWORK,
     CONNECTION_TYPE_SERIAL,
@@ -50,6 +56,8 @@ from .const import (
     DEFAULT_ALIGN,
     DEFAULT_ALLOW_LOCAL_IMAGE_URLS,
     DEFAULT_BAUDRATE,
+    DEFAULT_BLE_IDLE_DISCONNECT_S,
+    DEFAULT_CHUNK_DELAY_MS_BLE,
     DEFAULT_CUT,
     DEFAULT_IN_EP,
     DEFAULT_LINE_WIDTH,
@@ -57,6 +65,7 @@ from .const import (
     DEFAULT_RFCOMM_CHANNEL,
     DEFAULT_SERIAL_WRITE_CHUNK_DELAY_MS,
     DEFAULT_SERIAL_WRITE_CHUNK_SIZE,
+    DEFAULT_STATUS_INTERVAL_BLE,
     DEFAULT_STATUS_INTERVAL_SERIAL,
     DOMAIN,
     IMPL_AUTO,
@@ -65,6 +74,7 @@ from .const import (
     RELIABILITY_PROFILE_PRESETS,
 )
 from .printer import (
+    BlePrinterConfig,
     BluetoothPrinterConfig,
     EscposPrinterAdapterBase,
     NetworkPrinterConfig,
@@ -85,6 +95,15 @@ PLATFORMS: list[str] = ["notify", "binary_sensor", "sensor"]
 # Domain-level singleton flag for one-time service registration.
 # Per-entry state lives on entry.runtime_data (see EscposRuntimeData).
 DATA_SERVICES_REGISTERED = "services_registered"
+
+# Per-transport default for the recurring status probe, applied only when the
+# user hasn't set CONF_STATUS_INTERVAL themselves. Connection types absent
+# from this map default to 0 (disabled) — see the rationale in const.py next
+# to DEFAULT_STATUS_INTERVAL_SERIAL.
+_DEFAULT_STATUS_INTERVALS: dict[str, int] = {
+    CONNECTION_TYPE_SERIAL: DEFAULT_STATUS_INTERVAL_SERIAL,
+    CONNECTION_TYPE_BLE: DEFAULT_STATUS_INTERVAL_BLE,
+}
 
 
 @dataclass
@@ -239,7 +258,13 @@ async def async_setup_entry(hass: HomeAssistant, entry: EscposConfigEntry) -> bo
     # ever sees real profile names. Executor: resolution loads the
     # capabilities YAML.
     shared["profile"] = await hass.async_add_executor_job(canonical_profile_key, shared["profile"])
-    config: UsbPrinterConfig | NetworkPrinterConfig | BluetoothPrinterConfig | SerialPrinterConfig
+    config: (
+        UsbPrinterConfig
+        | NetworkPrinterConfig
+        | BluetoothPrinterConfig
+        | BlePrinterConfig
+        | SerialPrinterConfig
+    )
     if connection_type == CONNECTION_TYPE_USB:
         config = UsbPrinterConfig(
             vendor_id=entry.data.get(CONF_VENDOR_ID, 0),
@@ -253,6 +278,24 @@ async def async_setup_entry(hass: HomeAssistant, entry: EscposConfigEntry) -> bo
             mac=str(entry.data.get(CONF_BT_MAC, "")),
             rfcomm_channel=int(entry.data.get(CONF_RFCOMM_CHANNEL, DEFAULT_RFCOMM_CHANNEL)),
             **shared,
+        )
+    elif connection_type == CONNECTION_TYPE_BLE:
+        # write_uuid / with_response stay None ("auto-detect") unless the user
+        # explicitly overrode them; an empty string from the form must not be
+        # mistaken for a real override.
+        raw_write_uuid = str(entry.data.get(CONF_BLE_WRITE_UUID, "") or "").strip()
+        raw_with_response = entry.data.get(CONF_BLE_WITH_RESPONSE)
+        config = BlePrinterConfig(
+            address=str(entry.data.get(CONF_BLE_ADDRESS, "")),
+            write_uuid=raw_write_uuid or None,
+            with_response=(None if raw_with_response is None else bool(raw_with_response)),
+            **shared,
+            write_chunk_delay_ms=int(
+                entry.options.get(CONF_BLE_WRITE_CHUNK_DELAY_MS, DEFAULT_CHUNK_DELAY_MS_BLE)
+            ),
+            idle_disconnect_s=int(
+                entry.options.get(CONF_BLE_IDLE_DISCONNECT, DEFAULT_BLE_IDLE_DISCONNECT_S)
+            ),
         )
     elif connection_type == CONNECTION_TYPE_SERIAL:
         config = SerialPrinterConfig(
@@ -302,15 +345,14 @@ async def async_setup_entry(hass: HomeAssistant, entry: EscposConfigEntry) -> bo
 
     # Start adapter background tasks (keepalive/status)
     # Note: USB printers don't support keepalive, but the adapter handles this
-    # Serial defaults to a non-zero status_interval (see
-    # DEFAULT_STATUS_INTERVAL_SERIAL); network/USB/Bluetooth stay at 0.
-    # Network/USB already get an implicit health check from the paper-status
-    # poll; Bluetooth's status check opens a real RFCOMM connection and many
-    # cheap printers beep on every connect, so it stays opt-in. Only applied
-    # when the user hasn't set the option themselves.
-    default_status_interval = (
-        DEFAULT_STATUS_INTERVAL_SERIAL if connection_type == CONNECTION_TYPE_SERIAL else 0
-    )
+    # Serial and BLE default to a non-zero status_interval; network/USB/
+    # Bluetooth stay at 0. Network/USB already get an implicit health check
+    # from the paper-status poll; Bluetooth's status check opens a real RFCOMM
+    # connection and many cheap printers beep on every connect, so it stays
+    # opt-in. BLE's check only reads advertisement data HA already has — no
+    # radio traffic, no beep — so it polls more often than serial. Only
+    # applied when the user hasn't set the option themselves.
+    default_status_interval = _DEFAULT_STATUS_INTERVALS.get(connection_type, 0)
     try:
         await adapter.start(
             hass,

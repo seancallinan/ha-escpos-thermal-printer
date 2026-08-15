@@ -17,6 +17,13 @@ dependencies = [
   "python-barcode==0.16.1",
   "pyusb==1.3.1",
   "dbus-fast==5.0.22",
+  # BLE GATT printers. Provided by HA core (the `bluetooth` integration
+  # pins it in package_constraints.txt), so this is a dev/CI pin only and
+  # is deliberately absent from manifest.json — see MANIFEST_EXCLUDES in
+  # scripts/sync_manifest_requirements.py and the `dependency-pins` skill.
+  # Match HA core's pin when upgrading the test harness: HA 2026.8.1 →
+  # bleak-retry-connector==4.6.3 (which in turn constrains bleak==3.0.2).
+  "bleak-retry-connector==4.6.3",
   # Visual-width measurement for the text-effects box / table padders so
   # CJK / fullwidth / emoji columns line up under the 1-col-per-glyph
   # text mode (instead of silently misaligning via len()).

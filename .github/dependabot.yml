@@ -56,3 +56,9 @@ updates:
       # unsatisfiable conflicts. Let HA core drive the version; check
       # package_constraints.txt when upgrading HA and update pyproject.toml.
       - dependency-name: "serialx"
+      # bleak-retry-connector is pinned by HA core via package_constraints.txt
+      # and is provided at runtime by the HA bluetooth integration (it is
+      # deliberately absent from manifest.json). Bumping it independently
+      # breaks the CI install. Let HA core drive the version; check
+      # package_constraints.txt when upgrading HA and update pyproject.toml.
+      - dependency-name: "bleak-retry-connector"

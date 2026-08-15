@@ -6,7 +6,7 @@
 [![HACS Default](https://img.shields.io/badge/HACS-Default-41BDF5.svg)](https://my.home-assistant.io/redirect/hacs_repository/?owner=cognitivegears&repository=ha-escpos-thermal-printer&category=integration)
 
 Print receipts, labels, QR codes, and more from Home Assistant automations.
-Connect any ESC/POS capable network, USB, bluetooth, or serial thermal printer and
+Connect any ESC/POS capable network, USB, Bluetooth (Classic or LE), or serial thermal printer and
 start printing in minutes.
 
 ![Printed Receipt Example](docs/assets/receipt.png)
@@ -15,9 +15,10 @@ start printing in minutes.
 
 - Print door access logs, temperature alerts, todo lists, daily reports, or
   shopping lists automatically
-- Works with any $30+ thermal printer (network, USB, Bluetooth, or serial)
+- Works with any $30+ thermal printer (network, USB, Bluetooth Classic/LE, or serial)
   that supports ESC/POS
-- Connects via TCP/IP, USB, Bluetooth, or a serial (UART/RS-232) cable or
+- Connects via TCP/IP, USB, Bluetooth Classic, Bluetooth LE (including via an
+  ESPHome Bluetooth proxy), or a serial (UART/RS-232) cable or
   ESPHome serial proxy
 - Set up as many printers as you need and target them individually or
   broadcast to all
@@ -49,8 +50,11 @@ start printing in minutes.
 - Thermal printer with ESC/POS support (most receipt printers)
 - **Network printers:** Accessible on your network (typically port 9100)
 - **USB printers:** Connected directly to your Home Assistant host (requires libusb)
-- **Bluetooth printers:** Linux host with kernel `AF_BLUETOOTH` support;
+- **Bluetooth Classic printers:** Linux host with kernel `AF_BLUETOOTH` support;
   printer paired on the host before adding to HA. See [Bluetooth printers](docs/bluetooth.md).
+- **Bluetooth LE printers:** HA's Bluetooth integration with a connectable scanner —
+  a host adapter *or* an ESPHome Bluetooth proxy. No pairing, no D-Bus, no host
+  access needed. See [BLE printers](docs/ble.md).
 - **Serial printers:** Linux host with serial port access (`dialout` group); or use
   an ESPHome serial proxy over the network. See [Serial printers](docs/serial.md).
 
@@ -71,6 +75,9 @@ This integration is in the HACS default store. No custom repository needed.
 3. Select your connection type:
    - **Network:** Enter your printer's IP address and port (default: 9100)
    - **USB:** Select from auto-discovered printers or enter VID:PID manually
+   - **Bluetooth Classic (RFCOMM):** Pick a printer already paired on the host
+   - **Bluetooth LE (GATT):** Pick a discovered BLE printer — works via Bluetooth proxy
+   - **Serial (UART/RS-232):** Pick a serial port or enter a proxy URL
 4. Select your printer model, or "Generic (no profile)" if it isn't listed
 5. Done! Your printer is ready to use
 
@@ -222,6 +229,14 @@ Cheap thermal printers (Netum, MUNBYN, POS-58 generics, Phomemo Classic line, et
 
 See [docs/bluetooth.md](docs/bluetooth.md) for the full pairing walkthrough, container deployment notes, the `socat` host-bridge fallback, and security considerations.
 
+## Bluetooth LE (BLE) printers
+
+BLE printers (Phomemo, cat printers, POS58-BLE and clones) connect through Home Assistant's Bluetooth integration — **no pairing, no D-Bus access, and no host shell required**. Because HA routes the connection, a BLE printer only has to be in range of *something* HA can talk to, so an ESP32 running ESPHome with `bluetooth_proxy: active: true` puts a printer anywhere in the house within reach. Like Classic, BLE is unencrypted: don't route sensitive content to it.
+
+Note that Bluetooth proxies carry **BLE only** — a Classic/RFCOMM printer cannot be proxied.
+
+See [docs/ble.md](docs/ble.md) for proxy setup, how to tell BLE and Classic apart, write-characteristic overrides, and chunk tuning.
+
 ## Serial (UART/RS-232) printers
 
 For printers connected via a physical serial cable or a network-based serial proxy. Supports direct device paths (`/dev/ttyUSB0`), ESPHome UART proxies (`esphome://host:port`), RFC2217 serial servers, and raw TCP sockets. On Linux, the HA user needs to be in the `dialout` group.
@@ -260,6 +275,7 @@ See [`blueprints/README.md`](blueprints/README.md) for import instructions, per-
 | [Network printers](docs/network.md) | TCP/IP setup |
 | [USB printers](docs/usb.md) | USB setup, permissions, container pass-through |
 | [Bluetooth printers](docs/bluetooth.md) | Pairing, RFCOMM, container caveats |
+| [BLE printers](docs/ble.md) | Bluetooth LE via host adapter or ESPHome proxy |
 | [Serial printers](docs/serial.md) | Serial/UART setup, ESPHome proxy, write chunking |
 | [Services](docs/services.md) | Service parameter reference |
 | [Images](docs/images.md) | Image printing: sources, processing, reliability, recipes |

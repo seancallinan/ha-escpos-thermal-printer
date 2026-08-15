@@ -24,6 +24,7 @@ from ..capabilities import (
     resolve_profile_name,
 )
 from ..const import (
+    CONF_BLE_ADDRESS,
     CONF_BT_MAC,
     CONF_CODEPAGE,
     CONF_CONNECTION_TYPE,
@@ -36,6 +37,7 @@ from ..const import (
     CONF_SERIAL_PORT,
     CONF_VENDOR_ID,
     CONF_WIDTH_PIXELS,
+    CONNECTION_TYPE_BLE,
     CONNECTION_TYPE_BLUETOOTH,
     CONNECTION_TYPE_NETWORK,
     CONNECTION_TYPE_SERIAL,
@@ -66,6 +68,13 @@ def _make_entry_title(data: dict[str, Any], user_data: dict[str, Any]) -> str:
             user_data.get(
                 "_printer_name",
                 f"Bluetooth Printer {data.get(CONF_BT_MAC, '')}",
+            )
+        )
+    if connection_type == CONNECTION_TYPE_BLE:
+        return str(
+            user_data.get(
+                "_printer_name",
+                f"BLE Printer {data.get(CONF_BLE_ADDRESS, '')}",
             )
         )
     if connection_type == CONNECTION_TYPE_SERIAL:

@@ -7,6 +7,38 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+### Added
+
+- **Bluetooth LE (BLE) connection type.** BLE thermal printers (Phomemo, cat
+  printers, POS58-BLE and the many generic clones) can now be added directly.
+  Connections route through Home Assistant's Bluetooth integration, so a
+  printer that is only in range of an **ESPHome Bluetooth proxy** — with
+  `bluetooth_proxy: active: true` — works exactly like one on the HA host's
+  own radio. Unlike the existing Bluetooth Classic / RFCOMM support this needs
+  no pairing, no bluez D-Bus access, no `--net=host`, and no host shell, so it
+  works on HA Container out of the box. Note that Bluetooth proxies carry BLE
+  only: a Classic/RFCOMM printer cannot be proxied. See [docs/ble.md](docs/ble.md).
+- BLE entries expose a **Signal strength** diagnostic sensor (advertisement
+  RSSI, disabled by default) for judging whether a printer needs a proxy
+  closer to it.
+- New **BLE-safe** reliability profile (64px image slices, 200ms per-slice
+  wait) for BLE printers that drop bytes partway through an image, plus
+  per-entry **BLE write delay** and **BLE idle disconnect** options.
+
+### Changed
+
+- The connection-type picker now labels the existing Bluetooth option
+  "Bluetooth Classic (RFCOMM)" to distinguish it from the new BLE option.
+- The three near-identical python-escpos transport wrappers
+  (`_escpos_bluetooth`, `_escpos_serial`, and the new `_escpos_ble`) now share
+  one implementation in `printer/_escpos_transport.py`; the old module names
+  remain as aliases. The serial transport's chunk-splitting logic moved to
+  `printer/transport_utils.iter_chunks`, shared with BLE.
+- `bleak-retry-connector` is pinned in `pyproject.toml` for dev/CI only. Like
+  `dbus-fast` and Pillow it is provided by HA core at runtime, so it is
+  deliberately absent from `manifest.json` (added to `MANIFEST_EXCLUDES` /
+  `HA_PROVIDED` and to the Dependabot ignore list).
+
 ## [1.1.0] - 2026-08-14
 
 ### Added

@@ -1,5 +1,11 @@
 # Bluetooth (RFCOMM) Printers
 
+> **Looking for Bluetooth LE?** This page covers Bluetooth **Classic / RFCOMM**, which needs
+> host-level pairing and a Linux kernel with `AF_BLUETOOTH`. If your printer is BLE — or if you
+> want to reach a printer through an **ESPHome Bluetooth proxy**, which carries BLE only — see
+> [BLE printers](ble.md) instead. BLE needs no pairing, no D-Bus, and no host shell access.
+> Many printers support both; [which one do I have?](ble.md#which-one-do-i-have)
+
 For portable, battery-powered ESC/POS printers (Netum, MUNBYN, POS-58 generics, Phomemo Classic line).
 
 > **Important:** Home Assistant's built-in Bluetooth integration scans for and discovers devices, but it does **not** pair Classic Bluetooth devices like thermal printers. You must pair the printer manually at the operating system level **before** adding it in HA. The integration never initiates pairing itself.

@@ -28,6 +28,8 @@ from ..capabilities import (
 )
 from ..const import (
     CONF_ALLOW_LOCAL_IMAGE_URLS,
+    CONF_BLE_IDLE_DISCONNECT,
+    CONF_BLE_WRITE_CHUNK_DELAY_MS,
     CONF_CODEPAGE,
     CONF_CONNECTION_TYPE,
     CONF_DEFAULT_ALIGN,
@@ -42,22 +44,27 @@ from ..const import (
     CONF_STATUS_INTERVAL,
     CONF_TIMEOUT,
     CONF_WIDTH_PIXELS,
+    CONNECTION_TYPE_BLE,
     CONNECTION_TYPE_BLUETOOTH,
     CONNECTION_TYPE_NETWORK,
     CONNECTION_TYPE_SERIAL,
     CONNECTION_TYPE_USB,
     DEFAULT_ALIGN,
     DEFAULT_ALLOW_LOCAL_IMAGE_URLS,
+    DEFAULT_BLE_IDLE_DISCONNECT_S,
+    DEFAULT_CHUNK_DELAY_MS_BLE,
     DEFAULT_CUT,
     DEFAULT_LINE_WIDTH,
     DEFAULT_SERIAL_WRITE_CHUNK_DELAY_MS,
     DEFAULT_SERIAL_WRITE_CHUNK_SIZE,
+    DEFAULT_STATUS_INTERVAL_BLE,
     DEFAULT_STATUS_INTERVAL_SERIAL,
     DEFAULT_TIMEOUT,
     IMPL_AUTO,
     IMPL_CHOICE_LABELS,
     RELIABILITY_PROFILE_AUTO,
     RELIABILITY_PROFILE_BALANCED,
+    RELIABILITY_PROFILE_BLE,
     RELIABILITY_PROFILE_BLUETOOTH,
     RELIABILITY_PROFILE_CONSERVATIVE,
     RELIABILITY_PROFILE_FAST_LAN,
@@ -71,11 +78,21 @@ _RELIABILITY_LABELS: dict[str, str] = {
     RELIABILITY_PROFILE_BALANCED: "Balanced (most USB / Star TSP)",
     RELIABILITY_PROFILE_CONSERVATIVE: "Conservative (cheap POS-58/80)",
     RELIABILITY_PROFILE_BLUETOOTH: "Bluetooth-safe (slow SPP printers)",
+    RELIABILITY_PROFILE_BLE: "BLE-safe (small MTU, slow GATT writes)",
 }
 
 # Cheap BT printers beep / drain battery on every poll -- see docs/bluetooth.md
 # and docs/limitations.md, which already document this floor as enforced.
 _MIN_BT_STATUS_INTERVAL = 60
+
+# Per-transport default for the recurring status probe, mirroring
+# ``__init__._DEFAULT_STATUS_INTERVALS`` so the form pre-fills what setup
+# would actually apply. BLE polls more often than serial because its probe
+# is a pure in-memory read of advertisement data (no radio traffic, no beep).
+_DEFAULT_STATUS_INTERVALS: dict[str, int] = {
+    CONNECTION_TYPE_SERIAL: DEFAULT_STATUS_INTERVAL_SERIAL,
+    CONNECTION_TYPE_BLE: DEFAULT_STATUS_INTERVAL_BLE,
+}
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -359,9 +376,7 @@ class EscposOptionsFlowHandler(CalibrationFlowMixin, config_entries.OptionsFlowW
                 CONF_STATUS_INTERVAL,
                 default=opts.get(
                     CONF_STATUS_INTERVAL,
-                    DEFAULT_STATUS_INTERVAL_SERIAL
-                    if connection_type == CONNECTION_TYPE_SERIAL
-                    else 0,
+                    _DEFAULT_STATUS_INTERVALS.get(connection_type, 0),
                 ),
             ): int,
             vol.Optional(
@@ -388,6 +403,19 @@ class EscposOptionsFlowHandler(CalibrationFlowMixin, config_entries.OptionsFlowW
                     ),
                 )
             ] = vol.All(vol.Coerce(int), vol.Range(min=0, max=1000))
+        if connection_type == CONNECTION_TYPE_BLE:
+            schema_fields[
+                vol.Optional(
+                    CONF_BLE_WRITE_CHUNK_DELAY_MS,
+                    default=opts.get(CONF_BLE_WRITE_CHUNK_DELAY_MS, DEFAULT_CHUNK_DELAY_MS_BLE),
+                )
+            ] = vol.All(vol.Coerce(int), vol.Range(min=0, max=1000))
+            schema_fields[
+                vol.Optional(
+                    CONF_BLE_IDLE_DISCONNECT,
+                    default=opts.get(CONF_BLE_IDLE_DISCONNECT, DEFAULT_BLE_IDLE_DISCONNECT_S),
+                )
+            ] = vol.All(vol.Coerce(int), vol.Range(min=0, max=3600))
         return vol.Schema(schema_fields)
 
     async def async_step_custom_profile(

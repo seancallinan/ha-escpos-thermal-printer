@@ -43,7 +43,7 @@ ALLOWED_NON_PINNED: set[str] = set()
 
 # Provided by HA core at runtime; must appear in pyproject (dev/CI) but NOT
 # in manifest.json. Mirror `sync_manifest_requirements.py` MANIFEST_EXCLUDES.
-HA_PROVIDED: set[str] = {"pillow", "dbus-fast"}
+HA_PROVIDED: set[str] = {"pillow", "dbus-fast", "bleak-retry-connector"}
 
 
 def parse_pyproject() -> dict[str, SpecifierSet]:

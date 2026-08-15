@@ -1,9 +1,14 @@
-"""Sensor platform — exposes BT-printer battery level when bluez tracks it.
+"""Sensor platform — per-transport diagnostic sensors for a printer entry.
 
-Most cheap thermal printers don't expose ``org.bluez.Battery1``, so for
-those the entity stays unavailable. Portable / battery-powered models
-(Phomemo M02, newer Netum firmware, some Cashino models) do, and this
-gives users a real "low battery" signal they can automate on.
+* Battery level for Bluetooth Classic printers, when bluez tracks it. Most
+  cheap thermal printers don't expose ``org.bluez.Battery1`` so the entity
+  stays unavailable; portable models (Phomemo M02, newer Netum firmware,
+  some Cashino models) do, giving users a real "low battery" signal.
+* Signal strength for BLE printers, read from the advertisement data HA's
+  bluetooth integration already holds. Useful for deciding whether a
+  printer needs a Bluetooth proxy closer to it.
+* Paper status for network/USB printers, and the last-image-print
+  diagnostic for every entry.
 """
 
 from __future__ import annotations
@@ -18,19 +23,26 @@ from homeassistant.components.sensor import (
     SensorStateClass,
 )
 from homeassistant.config_entries import ConfigEntry
-from homeassistant.const import PERCENTAGE
+from homeassistant.const import PERCENTAGE, SIGNAL_STRENGTH_DECIBELS_MILLIWATT
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers.entity import DeviceInfo, EntityCategory
 
 from .bluez import query_bt_battery_percentage
 from .const import (
+    CONF_BLE_ADDRESS,
     CONF_BT_MAC,
     CONF_CONNECTION_TYPE,
+    CONNECTION_TYPE_BLE,
     CONNECTION_TYPE_BLUETOOTH,
     CONNECTION_TYPE_NETWORK,
     CONNECTION_TYPE_USB,
 )
 from .device import build_device_info
+
+# Module-qualified rather than `from ... import name`: these are the
+# patchable seam for HA's bluetooth API (see printer/ble_transport), and
+# binding the names here would sidestep it.
+from .printer import ble_transport
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -63,6 +75,11 @@ async def async_setup_entry(
         mac = entry.data.get(CONF_BT_MAC, "")
         if mac:
             sensors.append(BluetoothPrinterBatterySensor(entry, mac))
+
+    if entry.data.get(CONF_CONNECTION_TYPE) == CONNECTION_TYPE_BLE:
+        address = entry.data.get(CONF_BLE_ADDRESS, "")
+        if address:
+            sensors.append(BlePrinterSignalSensor(entry, address))
 
     # Paper status needs a real read channel (DLE EOT response); the
     # Bluetooth/serial transports are write-only, and python-escpos
@@ -171,6 +188,51 @@ class BluetoothPrinterBatterySensor(SensorEntity):
             return
         self._attr_available = True
         self._attr_native_value = percentage
+
+
+class BlePrinterSignalSensor(SensorEntity):
+    """Advertisement RSSI for a BLE printer.
+
+    Reads whatever HA's bluetooth integration last heard — from the host
+    radio or from any Bluetooth proxy — so it costs nothing but a dict
+    lookup and never wakes the printer. Unavailable means nothing has heard
+    an advertisement recently, which is the same signal the connectivity
+    binary_sensor reports.
+    """
+
+    _attr_has_entity_name = True
+    _attr_translation_key = "signal_strength"
+    _attr_device_class = SensorDeviceClass.SIGNAL_STRENGTH
+    _attr_state_class = SensorStateClass.MEASUREMENT
+    _attr_native_unit_of_measurement = SIGNAL_STRENGTH_DECIBELS_MILLIWATT
+    _attr_entity_category = EntityCategory.DIAGNOSTIC
+    _attr_entity_registry_enabled_default = False
+    _attr_should_poll = True
+
+    def __init__(self, entry: ConfigEntry, address: str) -> None:
+        self._entry = entry
+        self._address = address
+        self._attr_unique_id = f"{entry.entry_id}_signal_strength"
+        self._attr_available = False
+
+    @property
+    def device_info(self) -> DeviceInfo:
+        return build_device_info(self._entry)
+
+    async def async_update(self) -> None:
+        """Read the last advertisement RSSI from the bluetooth integration."""
+        if not ble_transport.bluetooth_ready(self.hass):
+            self._attr_available = False
+            self._attr_native_value = None
+            return
+
+        service_info = ble_transport.async_last_advertisement(self.hass, self._address)
+        if service_info is None:
+            self._attr_available = False
+            self._attr_native_value = None
+            return
+        self._attr_available = True
+        self._attr_native_value = service_info.rssi
 
 
 class PaperStatusSensor(SensorEntity):

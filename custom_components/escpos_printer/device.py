@@ -8,14 +8,16 @@ binary_sensor.py, sensor.py, and notify.py each used to build independently
 from __future__ import annotations
 
 from homeassistant.config_entries import ConfigEntry
-from homeassistant.helpers.device_registry import CONNECTION_NETWORK_MAC
+from homeassistant.helpers.device_registry import CONNECTION_BLUETOOTH, CONNECTION_NETWORK_MAC
 from homeassistant.helpers.entity import DeviceInfo
 
 from .const import (
+    CONF_BLE_ADDRESS,
     CONF_CONNECTION_TYPE,
     CONF_DETECTED_MANUFACTURER,
     CONF_DETECTED_MODEL,
     CONF_MAC_ADDRESS,
+    CONNECTION_TYPE_BLE,
     CONNECTION_TYPE_BLUETOOTH,
     CONNECTION_TYPE_NETWORK,
     CONNECTION_TYPE_SERIAL,
@@ -26,6 +28,7 @@ from .const import (
 _MODEL_BY_CONNECTION_TYPE = {
     CONNECTION_TYPE_USB: "USB Printer",
     CONNECTION_TYPE_BLUETOOTH: "Bluetooth Printer",
+    CONNECTION_TYPE_BLE: "BLE Printer",
     CONNECTION_TYPE_SERIAL: "Serial Printer",
 }
 
@@ -76,6 +79,15 @@ def build_device_info(entry: ConfigEntry) -> DeviceInfo:
         serial = _usb_serial_number(entry)
         if serial:
             info["serial_number"] = serial
+    if connection_type == CONNECTION_TYPE_BLE:
+        # Registering the BLE address lets HA tie this device to the one the
+        # bluetooth integration already knows about, so the printer shows its
+        # proxy/adapter relationship rather than appearing as an unrelated
+        # device.
+        ble_address = entry.data.get(CONF_BLE_ADDRESS)
+        if ble_address:
+            info["connections"] = {(CONNECTION_BLUETOOTH, ble_address)}
+            return info
     mac = entry.data.get(CONF_MAC_ADDRESS)
     if mac:
         info["connections"] = {(CONNECTION_NETWORK_MAC, mac)}

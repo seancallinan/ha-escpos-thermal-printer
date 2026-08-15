@@ -70,6 +70,16 @@ should understand what is and isn't enforced. Cross-linked from
 - **Battery sensor only when bluez exposes it.** Most cheap thermal printers don't expose `org.bluez.Battery1`; the sensor stays unavailable for those.
 - **No paper status sensor.** The Bluetooth and serial transports are write-only in this integration, and an empty status read would misreport as "plenty of paper", so those connection types don't create the sensor (network/USB only).
 
+## Bluetooth LE (BLE) printers
+
+- **Bluetooth proxies carry BLE only.** A Classic/RFCOMM printer cannot be reached through an ESPHome (or any other) Bluetooth proxy — that is a limitation of the proxy protocol, not this integration. A dual-mode printer can be added over BLE instead.
+- **The proxy must allow connections.** ESPHome needs `bluetooth_proxy: active: true`. A passive proxy can see the printer but never print to it; such devices are hidden from the picker.
+- **Proxy connection slots are finite.** An ESP32 typically supports three simultaneous connections, and the integration holds the link open between prints (default 30s) because a BLE connect costs 1-3 seconds. Lower **BLE idle disconnect** or add a proxy if slots run short.
+- **Slower than every other transport.** BLE carries 20-244 bytes per packet, so large images take noticeably longer than over Classic, USB, or network.
+- **Unencrypted.** Like Classic, BLE links to these printers are unauthenticated and recoverable over the air. Don't route OTPs, 2FA codes, or door logs to one. Using a proxy doesn't help — the proxy-to-printer hop is still plain BLE.
+- **No standard write characteristic.** BLE has no equivalent of the Serial Port Profile. The integration auto-detects from a list of known vendor conventions and falls back to the first writable characteristic; an unusual printer may need the UUID set by hand (see [ble.md](ble.md#write-characteristic)).
+- **No paper or battery sensor.** The GATT write channel is one-way, and the bluez battery interface used by Classic entries doesn't apply to proxied devices. A signal-strength sensor is provided instead (disabled by default).
+
 ## Codepage / character set
 
 - **Not all profiles support all codepages.** The dropdown only shows codepages the selected profile advertises.

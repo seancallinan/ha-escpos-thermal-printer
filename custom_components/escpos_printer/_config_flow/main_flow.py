@@ -12,12 +12,14 @@ import voluptuous as vol
 
 from ..const import (
     CONF_CONNECTION_TYPE,
+    CONNECTION_TYPE_BLE,
     CONNECTION_TYPE_BLUETOOTH,
     CONNECTION_TYPE_NETWORK,
     CONNECTION_TYPE_SERIAL,
     CONNECTION_TYPE_USB,
     DOMAIN,
 )
+from .ble_steps import BleFlowMixin
 from .bluetooth_steps import BluetoothFlowMixin
 from .discovery_steps import DiscoveryFlowMixin
 from .import_steps import ImportFlowMixin
@@ -34,6 +36,7 @@ class EscposConfigFlow(
     DiscoveryFlowMixin,
     UsbFlowMixin,
     BluetoothFlowMixin,
+    BleFlowMixin,
     SerialFlowMixin,
     SettingsFlowMixin,
     ImportFlowMixin,
@@ -57,6 +60,8 @@ class EscposConfigFlow(
         self._paired_bt_devices: list[dict[str, Any]] = []
         self._show_all_bt_devices: bool = False
         self._pending_bt: dict[str, Any] = {}
+        self._discovered_ble_devices: list[dict[str, Any]] = []
+        self._show_all_ble_devices: bool = False
 
     async def async_step_user(self, user_input: dict[str, Any] | None = None) -> ConfigFlowResult:
         """Handle step 1: Connection type selection.
@@ -75,6 +80,8 @@ class EscposConfigFlow(
                 return await self.async_step_usb_select()
             if connection_type == CONNECTION_TYPE_BLUETOOTH:
                 return await self.async_step_bluetooth_select()
+            if connection_type == CONNECTION_TYPE_BLE:
+                return await self.async_step_ble_select()
             if connection_type == CONNECTION_TYPE_SERIAL:
                 return await self.async_step_serial()
             return await self.async_step_network()
@@ -85,7 +92,8 @@ class EscposConfigFlow(
                     {
                         CONNECTION_TYPE_NETWORK: "Network (TCP/IP)",
                         CONNECTION_TYPE_USB: "USB (Direct)",
-                        CONNECTION_TYPE_BLUETOOTH: "Bluetooth (RFCOMM)",
+                        CONNECTION_TYPE_BLUETOOTH: "Bluetooth Classic (RFCOMM)",
+                        CONNECTION_TYPE_BLE: "Bluetooth LE (GATT, proxy-capable)",
                         CONNECTION_TYPE_SERIAL: "Serial (UART/RS-232)",
                     }
                 ),
@@ -111,6 +119,8 @@ class EscposConfigFlow(
             return await self.async_step_reconfigure_usb()
         if connection_type == CONNECTION_TYPE_BLUETOOTH:
             return await self.async_step_reconfigure_bluetooth()
+        if connection_type == CONNECTION_TYPE_BLE:
+            return await self.async_step_reconfigure_ble()
         if connection_type == CONNECTION_TYPE_SERIAL:
             return await self.async_step_reconfigure_serial()
         return await self.async_step_reconfigure_network()

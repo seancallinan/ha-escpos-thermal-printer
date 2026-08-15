@@ -1,6 +1,6 @@
 # Configuration Reference
 
-Settings that apply to all connection types. For connection-specific options, see [network.md](network.md), [usb.md](usb.md), or [bluetooth.md](bluetooth.md). Don't want to set these by hand? The [calibration wizard](calibration.md) measures several of them for you by printing guided test pages.
+Settings that apply to all connection types. For connection-specific options, see [network.md](network.md), [usb.md](usb.md), [bluetooth.md](bluetooth.md), or [ble.md](ble.md). Don't want to set these by hand? The [calibration wizard](calibration.md) measures several of them for you by printing guided test pages.
 
 After initial setup, click **Configure** on the integration entry to change these.
 
@@ -88,16 +88,17 @@ Applied when a service call doesn't specify `cut`: `none` (default), `partial`, 
 
 ## Keep Alive (network only)
 
-Maintains a persistent TCP connection. Reduces print latency at the cost of misbehaving when the printer goes offline. **Network only.** USB and Bluetooth always reconnect per operation.
+Maintains a persistent TCP connection. Reduces print latency at the cost of misbehaving when the printer goes offline. **Network only.** USB, Bluetooth Classic, and serial always reconnect per operation. BLE reconnects its python-escpos object per operation too, but deliberately caches the underlying GATT link between prints — see [ble.md](ble.md#idle-disconnect).
 
 ## Status Interval
 
-How often to probe the printer (seconds). Default is `0` (disabled) for network, USB, and Bluetooth; **serial defaults to `300`**. A one-shot status probe still runs at startup regardless of this setting, so the binary sensor doesn't stay unknown even with periodic polling off.
+How often to probe the printer (seconds). Default is `0` (disabled) for network, USB, and Bluetooth Classic; **serial defaults to `300`** and **BLE to `60`**. A one-shot status probe still runs at startup regardless of this setting, so the binary sensor doesn't stay unknown even with periodic polling off.
 
 - **Network**: any value works; `0` is fine for most setups since print success/failure already updates the sensor.
 - **USB**: same as network; `0` is fine, since the status sensor is backed by USB device enumeration rather than a live connection.
 - **Serial**: defaults to `300` seconds. Serial has no implicit health check from a paper-status poll the way network/USB do, so without periodic polling an unplugged printer would stay "Online" forever. The probe is a silent `os.stat` on the device path, so polling by default costs nothing.
-- **Bluetooth**: defaults to `0` (disabled), deliberately *not* the serial default, even though Bluetooth also lacks an implicit health check. A status check opens a real RFCOMM connection, and many cheap BT printers audibly beep on every connect; default-on polling would beep every 5 minutes. `60` or higher is accepted, and `1`–`59` is rejected with a form error. The integration auto-skips probes during prints, so aggressive polling has no benefit.
+- **BLE**: defaults to `60`. Its status check reads advertisement data Home Assistant has already received — no radio traffic, no connection, and the printer is never woken. It is the cheapest check of any transport, so there is no reason to make users opt in, and no minimum-interval floor.
+- **Bluetooth Classic**: defaults to `0` (disabled), deliberately *not* the serial default, even though Bluetooth also lacks an implicit health check. A status check opens a real RFCOMM connection, and many cheap BT printers audibly beep on every connect; default-on polling would beep every 5 minutes. `60` or higher is accepted, and `1`–`59` is rejected with a form error. The integration auto-skips probes during prints, so aggressive polling has no benefit.
 
 ## Allow Local Image URLs
 
@@ -115,4 +116,4 @@ If a printer's connection details change (a new IP address or port, a moved seri
 2. Click your printer, then **Reconfigure** (in the three-dot menu of the integration entry)
 3. Enter the new connection details
 
-The entry keeps its identity, so entities, automations, blueprints, and device actions keep working. Reconfigure is for *connection* settings; print settings (profile, codepage, line width, timeouts, etc.) live under **Configure** (the options flow) as documented above. Note: USB and Bluetooth reconfiguration must point at the *same physical printer*. Re-pointing at a different device is rejected; add a new entry for a new printer.
+The entry keeps its identity, so entities, automations, blueprints, and device actions keep working. Reconfigure is for *connection* settings; print settings (profile, codepage, line width, timeouts, etc.) live under **Configure** (the options flow) as documented above. Note: USB, Bluetooth Classic, and BLE reconfiguration must point at the *same physical printer*. Re-pointing at a different device is rejected; add a new entry for a new printer.

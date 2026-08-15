@@ -22,14 +22,16 @@ After install, **Settings** → **Devices & services** → **Add Integration** �
 
 - **Network (TCP/IP)**: for printers with Ethernet/WiFi
 - **USB**: for direct-attached printers (auto-discovery for known vendor IDs)
-- **Bluetooth (RFCOMM)**: for portable battery-powered printers; **pair on the host first**
+- **Bluetooth Classic (RFCOMM)**: for portable battery-powered printers; **pair on the host first**
+- **Bluetooth LE (GATT)**: for BLE printers; no pairing, and reachable through an ESPHome Bluetooth proxy
 - **Serial (UART/RS-232)**: for direct cable connections and ESPHome serial proxies
 
 Then follow the connection-specific guide:
 
 - [Network setup](network.md)
 - [USB setup](usb.md)
-- [Bluetooth setup](bluetooth.md)
+- [Bluetooth Classic setup](bluetooth.md)
+- [Bluetooth LE setup](ble.md)
 - [Serial setup](serial.md)
 
 After the connection step, you'll be asked for common settings (codepage, line width, default alignment, default cut). See [configuration.md](configuration.md).

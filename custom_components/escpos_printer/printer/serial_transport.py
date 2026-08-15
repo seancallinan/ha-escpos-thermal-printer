@@ -15,6 +15,8 @@ import contextlib
 import time
 from typing import Any, Protocol
 
+from .transport_utils import iter_chunks
+
 
 class SerialTransport(Protocol):
     """Minimal byte-sink interface used by ``SerialEscpos``."""
@@ -65,15 +67,12 @@ class _SerialTransportImpl:
             return
         data = bytes(self._buffer)
         self._buffer.clear()
-        if self._write_chunk_size <= 0 or len(data) <= self._write_chunk_size:
-            self._port.write(data)
-            return
         # Send in chunks with inter-chunk delays. Runs on an executor thread
-        # so time.sleep is safe.
-        for i in range(0, len(data), self._write_chunk_size):
-            chunk = data[i : i + self._write_chunk_size]
+        # so time.sleep is safe. iter_chunks collapses the unchunked case to a
+        # single final chunk, so one loop covers both.
+        for chunk, is_last in iter_chunks(data, self._write_chunk_size):
             self._port.write(chunk)
-            if self._write_chunk_delay_s > 0 and i + self._write_chunk_size < len(data):
+            if self._write_chunk_delay_s > 0 and not is_last:
                 time.sleep(self._write_chunk_delay_s)
 
     def flush(self) -> None:

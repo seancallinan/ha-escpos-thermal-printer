@@ -6,6 +6,9 @@ from homeassistant.const import CONF_HOST, CONF_PORT
 from pytest_homeassistant_custom_component.common import MockConfigEntry
 
 from custom_components.escpos_printer.const import (
+    CONF_BLE_ADDRESS,
+    CONF_BLE_WITH_RESPONSE,
+    CONF_BLE_WRITE_UUID,
     CONF_BT_MAC,
     CONF_CONNECTION_TYPE,
     CONF_DETECTED_MANUFACTURER,
@@ -15,6 +18,7 @@ from custom_components.escpos_printer.const import (
     CONF_PRODUCT_ID,
     CONF_RFCOMM_CHANNEL,
     CONF_VENDOR_ID,
+    CONNECTION_TYPE_BLE,
     CONNECTION_TYPE_BLUETOOTH,
     CONNECTION_TYPE_NETWORK,
     CONNECTION_TYPE_USB,
@@ -198,3 +202,40 @@ async def test_diagnostics_without_runtime_data(hass):  # type: ignore[no-untype
     assert diag["entry"]["data"][CONF_PORT] == 9100
     # Runtime section is empty because no adapter exists
     assert diag["runtime"] == {}
+
+
+async def test_diagnostics_ble_entry_redacts_address(hass):  # type: ignore[no-untyped-def]
+    """A BLE address identifies hardware, so it must never leak in a download.
+
+    Diagnostics downloads get attached to public GitHub issues.
+    """
+    entry = MockConfigEntry(
+        domain=DOMAIN,
+        title="BLE Printer AA:BB:CC:DD:EE:FF",
+        data={
+            CONF_CONNECTION_TYPE: CONNECTION_TYPE_BLE,
+            CONF_BLE_ADDRESS: "AA:BB:CC:DD:EE:FF",
+            CONF_BLE_WRITE_UUID: "0000ff02-0000-1000-8000-00805f9b34fb",
+            CONF_BLE_WITH_RESPONSE: True,
+        },
+        unique_id="ble:aa:bb:cc:dd:ee:ff",
+    )
+    entry.add_to_hass(hass)
+    assert await hass.config_entries.async_setup(entry.entry_id)
+    await hass.async_block_till_done()
+
+    diag = await async_get_config_entry_diagnostics(hass, entry)
+
+    assert diag["entry"]["title"] == "**REDACTED**"
+    assert diag["entry"]["data"][CONF_BLE_ADDRESS] == "**REDACTED**"
+    assert diag["runtime"]["address"] == "**REDACTED**"
+    assert diag["runtime"]["connection_info"] == "**REDACTED**"
+
+    # ...but the tuning knobs a maintainer needs for triage are present.
+    assert diag["runtime"]["connection_type"] == CONNECTION_TYPE_BLE
+    assert diag["runtime"]["write_uuid"] == "0000ff02-0000-1000-8000-00805f9b34fb"
+    assert diag["runtime"]["with_response"] is True
+    assert diag["runtime"]["idle_disconnect_s"] == 30
+    assert diag["runtime"]["write_chunk_delay_ms"] == 20
+    # BLE link state from the adapter's own get_diagnostics override.
+    assert diag["runtime"]["diagnostics"]["ble"]["connected"] is False

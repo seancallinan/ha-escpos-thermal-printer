@@ -37,6 +37,11 @@ CONNECTION_TYPE_NETWORK = "network"
 CONNECTION_TYPE_USB = "usb"
 CONNECTION_TYPE_BLUETOOTH = "bluetooth"
 CONNECTION_TYPE_SERIAL = "serial"
+# Bluetooth Low Energy (GATT). Distinct from CONNECTION_TYPE_BLUETOOTH, which
+# is Bluetooth *Classic* / RFCOMM over a host AF_BLUETOOTH socket. BLE goes
+# through HA's bluetooth integration, so it also reaches printers that are
+# only in range of an ESPHome (or other) Bluetooth proxy.
+CONNECTION_TYPE_BLE = "ble"
 
 # USB configuration keys
 CONF_VENDOR_ID = "vendor_id"
@@ -52,6 +57,29 @@ CONF_RFCOMM_CHANNEL = "rfcomm_channel"
 # Serial configuration keys
 CONF_SERIAL_PORT = "serial_port"
 CONF_BAUDRATE = "baudrate"
+
+# BLE (GATT) configuration keys
+CONF_BLE_ADDRESS = "ble_address"
+CONF_BLE_DEVICE = "ble_device"
+# Optional override for the GATT characteristic ESC/POS bytes are written to.
+# Unset means auto-detect (see printer/ble_gatt.KNOWN_WRITE_UUIDS).
+CONF_BLE_WRITE_UUID = "ble_write_uuid"
+# Optional override for acknowledged vs unacknowledged GATT writes. Unset
+# means "use write-with-response when the characteristic offers it".
+CONF_BLE_WITH_RESPONSE = "ble_with_response"
+# Seconds an idle GATT link is held open before being released. BLE connects
+# cost seconds and consume a scarce proxy connection slot, so the link
+# outlives a single print. 0 disables caching (reconnect per print).
+CONF_BLE_IDLE_DISCONNECT = "ble_idle_disconnect"
+# Per-GATT-write pause (options flow). Distinct from the image pipeline's
+# per-slice chunk_delay_ms: this one paces individual BLE packets.
+CONF_BLE_WRITE_CHUNK_DELAY_MS = "ble_write_chunk_delay_ms"
+
+# Sentinel value for the manual-address-entry choice in the BLE picker.
+BLE_MANUAL_ENTRY_KEY = "__manual__"
+
+# Sentinel for "show every discovered BLE device, not just printer-like ones".
+BLE_SHOW_ALL_KEY = "__show_all__"
 
 # Sentinel value for the manual-MAC-entry choice in the BT picker dropdown.
 BT_MANUAL_ENTRY_KEY = "__manual__"
@@ -73,7 +101,13 @@ DEFAULT_CUT = "none"
 # real RFCOMM connection, and many cheap BT printers audibly beep on every
 # connect -- default-on polling would beep every 5 minutes (see
 # _config_flow/options_flow.py). Bluetooth stays opt-in at 0.
+#
+# BLE *does* get a default-on poll, and a brisk one: unlike RFCOMM it reads
+# advertisement data HA has already received, emitting no radio traffic and
+# never touching the printer. It is the cheapest status check of any
+# transport here, so there is no reason to make users opt in.
 DEFAULT_STATUS_INTERVAL_SERIAL = 300
+DEFAULT_STATUS_INTERVAL_BLE = 60
 DEFAULT_LINE_WIDTH = 48
 DEFAULT_CODEPAGE = "CP437"
 DEFAULT_ALLOW_LOCAL_IMAGE_URLS = False
@@ -281,6 +315,16 @@ DEFAULT_FRAGMENT_HEIGHT = 256
 # ``printer/serial_adapter.py``, ``printer/base_adapter.py``).
 DEFAULT_CHUNK_DELAY_MS_NETWORK = 0
 DEFAULT_CHUNK_DELAY_MS_BLUETOOTH = 50
+# BLE is slower than RFCOMM and, on write-without-response characteristics,
+# has no application-level backpressure at all — the printer cannot tell us
+# to slow down, it just drops bytes. 20 ms between GATT writes is the
+# conservative starting point; the options flow exposes it per printer.
+DEFAULT_CHUNK_DELAY_MS_BLE = 20
+
+# Seconds an idle BLE GATT link is held open before release. Long enough that
+# a burst of prints reuses one connection, short enough that a scarce ESPHome
+# proxy connection slot is not held all day.
+DEFAULT_BLE_IDLE_DISCONNECT_S = 30
 DEFAULT_DITHER = "floyd-steinberg"
 DEFAULT_IMPL = "bitImageRaster"
 DEFAULT_THRESHOLD = 128
@@ -307,6 +351,7 @@ RELIABILITY_PROFILE_FAST_LAN = "fast_lan"
 RELIABILITY_PROFILE_BALANCED = "balanced"
 RELIABILITY_PROFILE_CONSERVATIVE = "conservative"
 RELIABILITY_PROFILE_BLUETOOTH = "bluetooth_safe"
+RELIABILITY_PROFILE_BLE = "ble_safe"
 CONF_RELIABILITY_PROFILE = "reliability_profile"
 
 RELIABILITY_PROFILE_PRESETS: dict[str, dict[str, Any]] = {
@@ -326,5 +371,13 @@ RELIABILITY_PROFILE_PRESETS: dict[str, dict[str, Any]] = {
     RELIABILITY_PROFILE_BLUETOOTH: {
         "fragment_height": 128,
         "chunk_delay_ms": 150,
+    },
+    RELIABILITY_PROFILE_BLE: {
+        # BLE carries the smallest payload per write of any transport here
+        # (an un-negotiated link is 20 bytes), so slices are kept small and
+        # the per-slice wait long. Start here for a BLE printer that drops
+        # bytes mid-image.
+        "fragment_height": 64,
+        "chunk_delay_ms": 200,
     },
 }
