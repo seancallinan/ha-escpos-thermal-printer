@@ -31,7 +31,7 @@ from .image_operations import (
 )
 from .image_processor import FALLBACK_PROFILE_WIDTH
 from .mapping_utils import cleanup_cut, map_align, map_cut, map_multiplier, map_underline
-from .print_operations import PrintOperationsMixin, _print_text_under_lock
+from .print_operations import PrintOperationsMixin, _print_text_under_lock, _qr_under_lock
 
 if TYPE_CHECKING:
     from homeassistant.core import Context
@@ -568,6 +568,7 @@ class EscposPrinterAdapterBase(
         except ImportError:
             return
         profile_name = getattr(self._config, "profile", None) or "default"
+        entry = hass.config_entries.async_get_entry(self.entry_id) if self.entry_id else None
         try:
             ir.async_create_issue(
                 hass,
@@ -577,6 +578,7 @@ class EscposPrinterAdapterBase(
                 severity=ir.IssueSeverity.WARNING,
                 translation_key="profile_width_fallback",
                 translation_placeholders={
+                    "name": entry.title if entry else "ESC/POS printer",
                     "profile": profile_name,
                     "fallback": str(FALLBACK_PROFILE_WIDTH),
                 },
@@ -767,6 +769,11 @@ class _BatchPage:
         self,
         *,
         text: str,
+        align: str | None = None,
+        bold: bool | None = None,
+        underline: str | None = None,
+        width: str | int | None = None,
+        height: str | int | None = None,
         encoding: str | None = None,
         wrap: bool = True,
         feed: int | None = 0,
@@ -777,15 +784,26 @@ class _BatchPage:
             self._hass,
             self._printer,
             text=text,
-            align=None,
-            bold=None,
-            underline=None,
-            width=None,
-            height=None,
+            align=align,
+            bold=bold,
+            underline=underline,
+            width=width,
+            height=height,
             encoding=encoding,
             wrap=wrap,
         )
         await self._adapter._apply_cut_and_feed(self._hass, self._printer, "none", feed)
+
+    async def print_qr(
+        self,
+        *,
+        data: str,
+        size: int | None = None,
+        ec: str | None = None,
+        align: str | None = "center",
+    ) -> None:
+        """Print a QR code on the held connection (mirrors ``adapter.print_qr``)."""
+        await _qr_under_lock(self._hass, self._printer, data=data, size=size, ec=ec, align=align)
 
     async def print_image(
         self,

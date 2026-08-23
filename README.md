@@ -37,6 +37,7 @@ start printing in minutes.
 - UTF-8 text with automatic character conversion
 - 35+ printer profiles with automatic feature detection, plus 23 rebadged/clone models available directly as "(compatible)" dropdown entries
 - Guided calibration wizard: prints test pages to measure image implementation, paper width, columns, and codepage, then saves them for you ([guide](docs/calibration.md))
+- Device page offers Feed / Cut / Beep / Sample test print buttons, and new printers get a Settings → Repairs suggestion linking to the calibration wizard
 - Full UI configuration, no YAML required
 
 ## Quick Start
@@ -141,7 +142,9 @@ data:
   cut: partial
 ```
 
-To print to every configured printer at once, set `broadcast: true` in `data`. (Omitting the target entirely also broadcasts, kept for backward compatibility, but logs a warning when more than one printer is configured.)
+Since 1.2.0 the print services use Home Assistant's standard target picker, so you can also target entities, areas, floors, or labels — and the services appear in the entity/device "Add to… → Create as a new action" pickers. The `device_id` form above (and `device_id` passed directly in `data:`) keeps working unchanged; existing automations need no migration.
+
+To print to every configured printer at once, set `broadcast: true` in `data`. (Omitting the target entirely also broadcasts, kept for backward compatibility, but logs a warning when more than one printer is configured — this implicit fallback is deprecated and will be removed in 2.0.0.)
 
 ### Print a Bordered Header
 
