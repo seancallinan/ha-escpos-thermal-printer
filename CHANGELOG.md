@@ -59,6 +59,63 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
   deliberately absent from `manifest.json` (added to `MANIFEST_EXCLUDES` /
   `HA_PROVIDED` and to the Dependabot ignore list).
 
+### Fixed
+
+- Clearing the preselected printer profile in the add-printer form (network
+  discovery, USB, and Bluetooth) now actually stores the Generic
+  (no-profile) choice. Previously the discovery suggestion was the schema
+  default, so a cleared field was silently reinstated to the suggested
+  profile on submit. The suggestion is now a prefilled value only.
+- The "not yet calibrated" Repairs suggestion is no longer filed for
+  printers whose selected profile already carries everything the wizard
+  measures (image implementation, pixel width, font columns, and a
+  codepage table). Generic, custom, and incomplete profiles still get
+  the nudge.
+- Repairs issues now name the printer they refer to: the "not yet
+  calibrated" suggestion and the profile-width fallback warning both show
+  the config entry's title in their heading, and the calibration fix-flow
+  dialog names the printer being calibrated. Previously, with multiple
+  printers, identical "Printer not yet calibrated" entries were
+  indistinguishable.
+
+## [1.2.0] - 2026-08-15
+
+### Added
+
+- Print services can now be targeted by entity, area, floor, or label — in
+  addition to device — via Home Assistant's standard `target:` block, and
+  now appear in the entity/device "Add to… → Create as a new action"
+  picker. `calibration_print` is included. Existing `device_id` and
+  `broadcast` fields keep working unchanged; no migration is needed.
+- Device page buttons: Feed paper, Cut paper, Beep, and Sample test print
+  (a one-tap demo receipt with the integration logo, styled text, a table,
+  and a QR code).
+- Uncalibrated printers now get a dismissible suggestion in Settings →
+  Repairs that launches the calibration wizard directly — no more hunting
+  for it under the integration's Configure menu.
+- Bisofice XGR-POS581 is now recognized in the printer model dropdown,
+  aliased to the bundled POS-5890 profile (hardware-verified via a user's
+  calibration report, #149): 384 px width, 32 columns, Epson-standard
+  codepage indices for CP858/CP1252/CP850/CP437.
+- Project website (`docs/index.html`) for GitHub Pages: thermal-receipt
+  themed landing page with examples, service overview, blueprint list, and
+  documentation links.
+
+### Changed
+
+- A legacy `device_id` in `data:` combined with a picker target (entity,
+  area, floor, or label) unions the two — every printer either resolves to
+  gets printed. Automations created in the UI before 1.2.0 stored
+  `device_id` inside `data:` rather than the newer `target:` block, so
+  their editor now shows an empty target picker; the call still works
+  unchanged.
+
+### Deprecated
+
+- The implicit broadcast-when-no-target fallback (omitting both a target
+  and `broadcast`) is deprecated; it will be removed in 2.0.0. Select a
+  target or set `broadcast: true` instead.
+
 ## [1.1.0] - 2026-08-14
 
 ### Added
@@ -1635,7 +1692,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 Earlier releases: see git history.
 
-[Unreleased]: https://github.com/cognitivegears/ha-escpos-thermal-printer/compare/v1.1.0...HEAD
+[Unreleased]: https://github.com/cognitivegears/ha-escpos-thermal-printer/compare/v1.2.0...HEAD
+[1.2.0]: https://github.com/cognitivegears/ha-escpos-thermal-printer/compare/v1.1.0...v1.2.0
 [1.1.0]: https://github.com/cognitivegears/ha-escpos-thermal-printer/compare/v1.0.0...v1.1.0
 [1.0.0]: https://github.com/cognitivegears/ha-escpos-thermal-printer/compare/v0.8.0...v1.0.0
 [0.8.0]: https://github.com/cognitivegears/ha-escpos-thermal-printer/compare/v0.7.4...v0.8.0

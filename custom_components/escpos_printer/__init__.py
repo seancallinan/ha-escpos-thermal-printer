@@ -18,6 +18,7 @@ from .capabilities import (
     is_valid_profile,
     pick_impl,
     profile_declares_no_images,
+    profile_provides_calibration,
 )
 from .const import (
     CONF_ALLOW_LOCAL_IMAGE_URLS,
@@ -91,7 +92,7 @@ _LOGGER = logging.getLogger(__name__)
 
 CONFIG_SCHEMA = cv.config_entry_only_config_schema(DOMAIN)
 
-PLATFORMS: list[str] = ["notify", "binary_sensor", "sensor"]
+PLATFORMS: list[str] = ["notify", "binary_sensor", "sensor", "button"]
 
 # Domain-level singleton flag for one-time service registration.
 # Per-entry state lives on entry.runtime_data (see EscposRuntimeData).
@@ -116,6 +117,82 @@ class EscposRuntimeData:
 
 
 type EscposConfigEntry = ConfigEntry[EscposRuntimeData]
+
+
+type PrinterConfig = (
+    UsbPrinterConfig
+    | NetworkPrinterConfig
+    | BluetoothPrinterConfig
+    | BlePrinterConfig
+    | SerialPrinterConfig
+)
+
+
+def _build_printer_config(
+    entry: EscposConfigEntry, connection_type: str, shared: dict[str, Any]
+) -> PrinterConfig:
+    """Build the transport-specific printer config for ``connection_type``.
+
+    ``shared`` carries the transport-independent settings from
+    :func:`_shared_print_config`, with the profile already resolved to a
+    bundled key. An unknown or absent connection type falls back to
+    network, matching the ``CONNECTION_TYPE_NETWORK`` read-time default.
+    """
+    config: PrinterConfig
+    if connection_type == CONNECTION_TYPE_USB:
+        config = UsbPrinterConfig(
+            vendor_id=entry.data.get(CONF_VENDOR_ID, 0),
+            product_id=entry.data.get(CONF_PRODUCT_ID, 0),
+            in_ep=entry.data.get(CONF_IN_EP, DEFAULT_IN_EP),
+            out_ep=entry.data.get(CONF_OUT_EP, DEFAULT_OUT_EP),
+            **shared,
+        )
+    elif connection_type == CONNECTION_TYPE_BLUETOOTH:
+        config = BluetoothPrinterConfig(
+            mac=str(entry.data.get(CONF_BT_MAC, "")),
+            rfcomm_channel=int(entry.data.get(CONF_RFCOMM_CHANNEL, DEFAULT_RFCOMM_CHANNEL)),
+            **shared,
+        )
+    elif connection_type == CONNECTION_TYPE_BLE:
+        # write_uuid / with_response stay None ("auto-detect") unless the user
+        # explicitly overrode them; an empty string from the form must not be
+        # mistaken for a real override.
+        raw_write_uuid = str(entry.data.get(CONF_BLE_WRITE_UUID, "") or "").strip()
+        raw_with_response = entry.data.get(CONF_BLE_WITH_RESPONSE)
+        config = BlePrinterConfig(
+            address=str(entry.data.get(CONF_BLE_ADDRESS, "")),
+            write_uuid=raw_write_uuid or None,
+            with_response=(None if raw_with_response is None else bool(raw_with_response)),
+            pair=bool(entry.data.get(CONF_BLE_PAIR, False)),
+            **shared,
+            write_chunk_delay_ms=int(
+                entry.options.get(CONF_BLE_WRITE_CHUNK_DELAY_MS, DEFAULT_CHUNK_DELAY_MS_BLE)
+            ),
+            idle_disconnect_s=int(
+                entry.options.get(CONF_BLE_IDLE_DISCONNECT, DEFAULT_BLE_IDLE_DISCONNECT_S)
+            ),
+        )
+    elif connection_type == CONNECTION_TYPE_SERIAL:
+        config = SerialPrinterConfig(
+            serial_port=str(entry.data.get(CONF_SERIAL_PORT, "")),
+            baudrate=int(entry.data.get(CONF_BAUDRATE, DEFAULT_BAUDRATE)),
+            **shared,
+            write_chunk_size=int(
+                entry.options.get(CONF_SERIAL_WRITE_CHUNK_SIZE, DEFAULT_SERIAL_WRITE_CHUNK_SIZE)
+            ),
+            write_chunk_delay_ms=int(
+                entry.options.get(
+                    CONF_SERIAL_WRITE_CHUNK_DELAY_MS, DEFAULT_SERIAL_WRITE_CHUNK_DELAY_MS
+                )
+            ),
+        )
+    else:
+        config = NetworkPrinterConfig(
+            host=entry.data[CONF_HOST],
+            port=entry.data.get(CONF_PORT, 9100),
+            **shared,
+        )
+    return config
 
 
 def _shared_print_config(entry: EscposConfigEntry) -> dict[str, Any]:
@@ -259,66 +336,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: EscposConfigEntry) -> bo
     # ever sees real profile names. Executor: resolution loads the
     # capabilities YAML.
     shared["profile"] = await hass.async_add_executor_job(canonical_profile_key, shared["profile"])
-    config: (
-        UsbPrinterConfig
-        | NetworkPrinterConfig
-        | BluetoothPrinterConfig
-        | BlePrinterConfig
-        | SerialPrinterConfig
-    )
-    if connection_type == CONNECTION_TYPE_USB:
-        config = UsbPrinterConfig(
-            vendor_id=entry.data.get(CONF_VENDOR_ID, 0),
-            product_id=entry.data.get(CONF_PRODUCT_ID, 0),
-            in_ep=entry.data.get(CONF_IN_EP, DEFAULT_IN_EP),
-            out_ep=entry.data.get(CONF_OUT_EP, DEFAULT_OUT_EP),
-            **shared,
-        )
-    elif connection_type == CONNECTION_TYPE_BLUETOOTH:
-        config = BluetoothPrinterConfig(
-            mac=str(entry.data.get(CONF_BT_MAC, "")),
-            rfcomm_channel=int(entry.data.get(CONF_RFCOMM_CHANNEL, DEFAULT_RFCOMM_CHANNEL)),
-            **shared,
-        )
-    elif connection_type == CONNECTION_TYPE_BLE:
-        # write_uuid / with_response stay None ("auto-detect") unless the user
-        # explicitly overrode them; an empty string from the form must not be
-        # mistaken for a real override.
-        raw_write_uuid = str(entry.data.get(CONF_BLE_WRITE_UUID, "") or "").strip()
-        raw_with_response = entry.data.get(CONF_BLE_WITH_RESPONSE)
-        config = BlePrinterConfig(
-            address=str(entry.data.get(CONF_BLE_ADDRESS, "")),
-            write_uuid=raw_write_uuid or None,
-            with_response=(None if raw_with_response is None else bool(raw_with_response)),
-            pair=bool(entry.data.get(CONF_BLE_PAIR, False)),
-            **shared,
-            write_chunk_delay_ms=int(
-                entry.options.get(CONF_BLE_WRITE_CHUNK_DELAY_MS, DEFAULT_CHUNK_DELAY_MS_BLE)
-            ),
-            idle_disconnect_s=int(
-                entry.options.get(CONF_BLE_IDLE_DISCONNECT, DEFAULT_BLE_IDLE_DISCONNECT_S)
-            ),
-        )
-    elif connection_type == CONNECTION_TYPE_SERIAL:
-        config = SerialPrinterConfig(
-            serial_port=str(entry.data.get(CONF_SERIAL_PORT, "")),
-            baudrate=int(entry.data.get(CONF_BAUDRATE, DEFAULT_BAUDRATE)),
-            **shared,
-            write_chunk_size=int(
-                entry.options.get(CONF_SERIAL_WRITE_CHUNK_SIZE, DEFAULT_SERIAL_WRITE_CHUNK_SIZE)
-            ),
-            write_chunk_delay_ms=int(
-                entry.options.get(
-                    CONF_SERIAL_WRITE_CHUNK_DELAY_MS, DEFAULT_SERIAL_WRITE_CHUNK_DELAY_MS
-                )
-            ),
-        )
-    else:
-        config = NetworkPrinterConfig(
-            host=entry.data[CONF_HOST],
-            port=entry.data.get(CONF_PORT, 9100),
-            **shared,
-        )
+    config = _build_printer_config(entry, connection_type, shared)
 
     adapter = create_printer_adapter(config)
     adapter.entry_id = entry.entry_id
@@ -380,6 +398,33 @@ async def async_setup_entry(hass: HomeAssistant, entry: EscposConfigEntry) -> bo
     if os.environ.get("ESC_POS_DISABLE_PLATFORMS") == "1":
         platforms = []
     await hass.config_entries.async_forward_entry_setups(entry, platforms)
+
+    # Calibration nudge: one fixable Repairs issue per never-calibrated
+    # entry. "Calibrated" = any wizard-saved key present in options; the
+    # settings form writes the same keys, which is fine — a user who
+    # found the options flow doesn't need the pointer. A known profile
+    # that already carries everything the wizard measures counts too.
+    from homeassistant.helpers import issue_registry as ir  # noqa: PLC0415
+
+    calibrated = any(
+        key in entry.options
+        for key in (CONF_IMPL, CONF_WIDTH_PIXELS, CONF_LINE_WIDTH, CONF_CODEPAGE)
+    ) or await hass.async_add_executor_job(profile_provides_calibration, shared["profile"])
+    issue_id = f"printer_not_calibrated_{entry.entry_id}"
+    if calibrated:
+        ir.async_delete_issue(hass, DOMAIN, issue_id)
+    else:
+        ir.async_create_issue(
+            hass,
+            DOMAIN,
+            issue_id,
+            is_fixable=True,
+            severity=ir.IssueSeverity.WARNING,
+            translation_key="printer_not_calibrated",
+            translation_placeholders={"name": entry.title},
+            data={"entry_id": entry.entry_id},
+        )
+
     return True
 
 
@@ -434,6 +479,7 @@ async def async_remove_entry(hass: HomeAssistant, entry: EscposConfigEntry) -> N
         profile = entry.options.get(CONF_PROFILE, entry.data.get(CONF_PROFILE))
         if profile:
             ir.async_delete_issue(hass, DOMAIN, f"profile_width_fallback_{profile}")
+        ir.async_delete_issue(hass, DOMAIN, f"printer_not_calibrated_{entry.entry_id}")
     except Exception as err:  # best effort
         _LOGGER.debug(
             "Could not clean up repair issues for entry %s: %s",
