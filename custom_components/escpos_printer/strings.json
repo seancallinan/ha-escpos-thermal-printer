@@ -566,11 +566,17 @@
     "binary_sensor": {
       "online": {
         "name": "Online"
+      },
+      "cover_open": {
+        "name": "Cover open"
       }
     },
     "sensor": {
       "last_image_print": {
         "name": "Last image print"
+      },
+      "last_print": {
+        "name": "Last print"
       },
       "battery": {
         "name": "Battery"
@@ -1584,6 +1590,10 @@
           "description": "Paper cutting mode after printing (defaults to the printer's configured cut mode)",
           "name": "Cut"
         },
+        "density": {
+          "description": "Print density level (0-8). 5 is darkest; values above 5 step back down. The printer keeps the value until changed.",
+          "name": "Density"
+        },
         "encoding": {
           "description": "Codepage override — a python-escpos codepage name such as CP437 or CP858 (not a Python codec name). Ignored when UTF-8 mode is enabled.",
           "name": "Encoding"
@@ -1591,6 +1601,10 @@
         "feed": {
           "description": "Number of lines to feed after printing",
           "name": "Feed Lines"
+        },
+        "font": {
+          "description": "Printer font. Font B is smaller and fits more columns per line — raise the printer's configured line width to use the extra columns.",
+          "name": "Font"
         },
         "height": {
           "description": "Font height (`normal`, `double`, `triple`, or `1-8`)",
@@ -1655,6 +1669,10 @@
         "image_width": {
           "description": "Target image width; defaults to printer profile width.",
           "name": "Image Width (pixels)"
+        },
+        "invert": {
+          "description": "White-on-black printing",
+          "name": "Invert"
         },
         "message": {
           "description": "The text to print",
@@ -1818,6 +1836,10 @@
           "description": "Paper cutting mode after printing (defaults to the printer's configured cut mode)",
           "name": "Cut"
         },
+        "density": {
+          "description": "Print density level (0-8). 5 is darkest; values above 5 step back down. The printer keeps the value until changed.",
+          "name": "Density"
+        },
         "encoding": {
           "description": "Codepage override for this print — a python-escpos codepage name such as CP437, CP850, or CP858 (not a Python codec name). Leave empty to use the printer's configured codepage.",
           "name": "Encoding"
@@ -1826,9 +1848,17 @@
           "description": "Number of lines to feed after printing",
           "name": "Feed Lines"
         },
+        "font": {
+          "description": "Printer font. Font B is smaller and fits more columns per line — raise the printer's configured line width to use the extra columns.",
+          "name": "Font"
+        },
         "height": {
           "description": "Font height (`normal`, `double`, `triple`, or `1-8`)",
           "name": "Height"
+        },
+        "invert": {
+          "description": "White-on-black printing",
+          "name": "Invert"
         },
         "text": {
           "description": "The text to print",
@@ -1964,13 +1994,25 @@
           "description": "Paper cutting mode after printing (defaults to the printer's configured cut mode)",
           "name": "Cut"
         },
+        "density": {
+          "description": "Print density level (0-8). 5 is darkest; values above 5 step back down. The printer keeps the value until changed.",
+          "name": "Density"
+        },
         "feed": {
           "description": "Number of lines to feed after printing",
           "name": "Feed Lines"
         },
+        "font": {
+          "description": "Printer font. Font B is smaller and fits more columns per line — raise the printer's configured line width to use the extra columns.",
+          "name": "Font"
+        },
         "height": {
           "description": "Font height (`normal`, `double`, `triple`, or `1-8`)",
           "name": "Height"
+        },
+        "invert": {
+          "description": "White-on-black printing",
+          "name": "Invert"
         },
         "text": {
           "description": "The text to print (UTF-8 characters will be converted to printer-compatible encoding)",
